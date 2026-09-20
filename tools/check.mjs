@@ -17,40 +17,48 @@
  * node tools/check.mjs --speed=2       # explicit multiplier
  * node tools/check.mjs --strict        # treat "not ready" as failure
  * node tools/check.mjs --headed        # watch it happen
+ * node tools/check.mjs --watch=/x.html # drive a different player page
  * ```
  *
  * ## The fast-forward contract
  * Before any page script runs, the harness sets:
  * - `window.__OH_TEST = true` — you are inside the smoke test
- * - `window.__OH_SPEED = <number>` — requested playback rate (1 unless `--fast`)
+ * - `window.__OH_FAST_FORWARD = <number>` — requested playback rate
+ * - `window.__OH_SPEED = <number>` — the same number, the alias player.js accepts
  *
- * `/js/player.js` may honour `__OH_SPEED` itself (scaling the stage clock,
- * dialogue `cps`, holds, whatever it likes). If it does, it must set
+ * `/js/player.js` honours these itself (it scales the stage delta and the
+ * dialogue typing speed), and the harness detects that by reading the file, so
+ * the two never multiply. A player can also say so at runtime by setting
  * `window.__OH_SPEED_HANDLED = true` before the episode starts.
  *
- * If that flag is absent when PLAY is pressed, the harness applies its own
+ * If nothing claims the speed-up, the harness applies its own
  * fast-forward, which needs no cooperation at all: it dilates the timestamp
  * handed to every `requestAnimationFrame` callback. Since the engine and the
  * director both derive their clocks from rAF, the whole show speeds up while
- * real wall-clock measurement stays honest. The engine clamps `dt` to 1/20s,
+ * real wall-clock measurement stays honest. `setTimeout`/`setInterval` delays
+ * are divided by the same factor, so a page that times something outside the
+ * rAF loop (dialogue.js's title card does) speeds up too. The engine clamps `dt` to 1/20s,
  * so the useful ceiling is ~3x; anything higher is silently capped by that
  * clamp and the reported duration is corrected for it.
  *
  * ## The completion contract
  * The harness considers an episode finished when any of these happens
  * (first one wins):
- * 1. `window.__OH_STATE === 'done'` (or `'ended'` / `'error'`)
- * 2. `window.__OH_DONE === true`
- * 3. an `oh-episode-end` event is dispatched on `window`
- * 4. a visible element matching `[data-oh-end]`, `#oh-end`, `.oh-endcard`,
- *    `[data-oh-state="done"]` appears
+ * 1. `window.__OH_DONE === true`  ← what /js/player.js actually sets
+ * 2. an `oh:episode-ended` event on `window` (also accepted:
+ *    `oh:episode-end`, `oh-episode-ended`, `oh-episode-end`, `oh-ep-end`)
+ * 3. `window.__OH_STATE === 'done' | 'ended' | 'error'`
+ * 4. the end overlay becomes visible: `#ovl-end` (watch.html's), or any of
+ *    `[data-oh-end]`, `#oh-end`, `.oh-endcard`, `[data-oh-state="done"]`
  *
- * `/js/player.js` should do (1) and (3); the rest are fallbacks.
+ * The player's error overlay `#ovl-error` also ends the wait, and is reported
+ * with the message it is showing.
  *
  * ## The PLAY contract
- * The harness clicks the first of `[data-oh-play]`, `#oh-play`, `#play`,
- * `.oh-play`, `button[data-play]`, or a visible button whose text contains
- * PLAY / ▶ / WATCH. Failing all of that it presses Enter, then Space.
+ * The harness clicks the first of `[data-oh-play]`, `#oh-play`, `#play`
+ * (watch.html's), `.oh-play`, `button[data-play]`, or a visible button whose
+ * text contains PLAY / ▶ / WATCH. Failing all of that it presses Enter, then
+ * Space.
  *
  * @module tools/check
  */
@@ -174,6 +182,9 @@ export function harnessInit(cfg) {
   };
   W.__ohHarness = H;
   W.__OH_TEST = true;
+  // /js/player.js reads __OH_FAST_FORWARD first and treats __OH_SPEED as an
+  // alias, so set both and let it pick.
+  W.__OH_FAST_FORWARD = cfg.speed;
   W.__OH_SPEED = cfg.speed;
   if (cfg.poster) W.__OH_POSTER = true;
 
@@ -193,6 +204,19 @@ export function harnessInit(cfg) {
         throw err;
       }
     });
+  };
+
+  /* --- timers scale too, or anything the page schedules with setTimeout
+         (dialogue.js times its title card that way) would not speed up --- */
+  const rawTimeout = W.setTimeout.bind(W);
+  const rawInterval = W.setInterval.bind(W);
+  W.setTimeout = function (fn, ms, ...rest) {
+    const d = Number(ms) || 0;
+    return rawTimeout(fn, d > 0 ? d / H.speed : d, ...rest);
+  };
+  W.setInterval = function (fn, ms, ...rest) {
+    const d = Number(ms) || 0;
+    return rawInterval(fn, d > 0 ? d / H.speed : d, ...rest);
   };
 
   /* --- real-time frame sampler (never dilated) --- */
@@ -246,8 +270,9 @@ export function harnessInit(cfg) {
       H.endedBy = by;
     }
   };
-  W.addEventListener('oh-episode-end', () => markEnd('oh-episode-end event'));
-  W.addEventListener('oh-ep-end', () => markEnd('oh-ep-end event'));
+  for (const name of ['oh:episode-ended', 'oh:episode-end', 'oh-episode-ended', 'oh-episode-end', 'oh-ep-end']) {
+    W.addEventListener(name, () => markEnd(`${name} event`));
+  }
   W.__ohMarkEnd = markEnd;
 }
 
@@ -352,7 +377,20 @@ function samplePixels() {
  * @returns {PageReport}
  */
 function makeReport(label, url) {
-  return { label, url, status: 'pass', failures: [], notReady: [], warnings: [], notes: [], shots: [] };
+  return {
+    label,
+    url,
+    status: 'pass',
+    failures: [],
+    notReady: [],
+    warnings: [],
+    notes: [],
+    shots: [],
+    /** true for pages that must end up with a live WebGL context */
+    expectGl: false,
+    /** contexts lost while the episode was actually playing (teardown losses do not count) */
+    glLostInPlay: 0,
+  };
 }
 
 /** Local 404s that are expected while the show is being built. */
@@ -423,10 +461,13 @@ function classify(rep, w, base) {
   const shorten = (u) => String(u).replace(base, '');
   /** @type {string[]} */
   const missingPaths = [];
+  /** @type {string[]} */
+  const softPaths = [];
 
   for (const m of w.missing) {
     const short = shorten(m);
     if (SOFT_404.some((re) => re.test(short))) {
+      softPaths.push(short.split(' ')[0]);
       rep.warnings.push(`missing (harmless for now): ${short}`);
     } else {
       missingPaths.push(short);
@@ -442,9 +483,18 @@ function classify(rep, w, base) {
     return missingPaths.some((p) => p && text.includes(p.split(' ')[0]));
   };
 
+  // A console error whose source is one of the harmless 404s above (a favicon,
+  // a thumbnail that has not been shot yet) is noise, not news.
+  const isSoft = (c) => {
+    const where = shorten(c.where || '');
+    if (SOFT_404.some((re) => re.test(where) || re.test(c.text))) return true;
+    return softPaths.some((p) => p && (where.includes(p) || c.text.includes(p)));
+  };
+
   for (const c of w.console) {
     const line = c.where ? `${c.text}\n      at ${shorten(c.where)}` : c.text;
     if (IGNORE_CONSOLE.some((re) => re.test(c.text))) continue;
+    if (isSoft(c)) continue;
     if (c.type === 'warning') {
       rep.warnings.push(`console.warn: ${line}`);
       continue;
@@ -469,6 +519,8 @@ function foldHarnessErrors(rep, h) {
   if (!h) return;
   for (const e of h.errors || []) {
     const text = `${e.kind}: ${e.message}${e.source ? ` (${e.source})` : ''}`;
+    // Context loss is judged separately in visit(), with teardown excluded.
+    if (e.kind === 'webgl') continue;
     if (/Failed to (load|fetch)/i.test(e.message)) rep.notReady.push(text);
     else if (!rep.failures.includes(text)) rep.failures.push(text);
   }
@@ -531,15 +583,24 @@ async function pressPlay(page) {
 async function endCardVisible(page) {
   try {
     return await page.evaluate(() => {
-      const sels = ['[data-oh-end]', '#oh-end', '.oh-endcard', '.oh-end', '[data-oh-state="done"]'];
-      for (const s of sels) {
-        const el = document.querySelector(s);
-        if (el && el.getClientRects().length) return true;
+      const shown = (sel) => {
+        const el = document.querySelector(sel);
+        return !!(el && !el.hidden && el.getClientRects().length);
+      };
+      // watch.html's own overlays first, then the generic fallbacks.
+      if (shown('#ovl-end')) return 'end overlay (#ovl-end)';
+      if (shown('#ovl-error')) {
+        const t = document.querySelector('#err-title');
+        const b = document.querySelector('#err-body');
+        return `error overlay: ${(t && t.textContent) || ''} ${(b && b.textContent) || ''}`.trim();
       }
-      return false;
+      for (const s of ['[data-oh-end]', '#oh-end', '.oh-endcard', '.oh-end', '[data-oh-state="done"]']) {
+        if (shown(s)) return `end element ${s}`;
+      }
+      return '';
     });
   } catch {
-    return false;
+    return '';
   }
 }
 
@@ -558,7 +619,7 @@ async function ensureDir(p) {
  * @param {Object} ctx
  * @param {string} label
  * @param {string} url
- * @param {(page: import('playwright-core').Page, rep: PageReport) => Promise<void>} [body]
+ * @param {(page: import('playwright-core').Page, rep: PageReport, w: Object) => Promise<void>} [body]
  * @returns {Promise<PageReport>}
  */
 async function visit(ctx, label, url, body) {
@@ -600,7 +661,7 @@ async function visit(ctx, label, url, body) {
   }
 
   try {
-    if (body) await body(page, rep);
+    if (body) await body(page, rep, w);
   } catch (err) {
     rep.failures.push(`harness error while driving the page: ${(err && err.stack) || err}`);
   }
@@ -609,8 +670,16 @@ async function visit(ctx, label, url, body) {
   foldHarnessErrors(rep, h);
   if (h) {
     rep.notes.push(`frames: ${h.frameCount} sampled, p50 ${h.p50}ms, p95 ${h.p95}ms, worst ${h.worst}ms`);
-    if (h.glContexts === 0) rep.notReady.push('no WebGL context was ever created on this page');
-    if (h.glLost > 0) rep.failures.push(`WebGL context was LOST ${h.glLost}x (restored ${h.glRestored}x)`);
+    if (h.glContexts === 0 && rep.expectGl) {
+      rep.notReady.push('no WebGL context was ever created on this page');
+    }
+    if (rep.glLostInPlay > 0) {
+      rep.failures.push(`WebGL context was LOST ${rep.glLostInPlay}x while the episode was playing`);
+    } else if (h.glLost > 0) {
+      // Disposing the stage (end card, error card, navigating away) loses the
+      // context on purpose. That is housekeeping, not a bug.
+      rep.notes.push(`WebGL context released ${h.glLost}x after playback — normal teardown`);
+    }
   }
 
   classify(rep, w, ctx.base);
@@ -660,7 +729,9 @@ async function checkEpisode(ctx, id) {
   const outDir = path.join(ctx.out, id);
   await ensureDir(outDir);
 
-  return visit(ctx, `episode ${id}`, url, async (page, rep) => {
+  return visit(ctx, `episode ${id}`, url, async (page, rep, watcher) => {
+    rep.expectGl = true;
+
     /* ---- negotiate the fast-forward ---- */
     const pre = await page.evaluate(() => ({
       handled: window.__OH_SPEED_HANDLED === true,
@@ -669,9 +740,9 @@ async function checkEpisode(ctx, id) {
 
     let effectiveSpeed = 1;
     if (ctx.speed > 1) {
-      if (pre.handled) {
+      if (pre.handled || ctx.playerHandlesSpeed) {
         effectiveSpeed = ctx.speed;
-        rep.notes.push(`player.js honours __OH_SPEED itself (${ctx.speed}x)`);
+        rep.notes.push(`player.js scales playback itself (${ctx.speed}x); the harness clock is untouched`);
       } else {
         await page.evaluate((s) => window.__ohHarness.setSpeed(s), ctx.speed).catch(() => {});
         effectiveSpeed = ctx.speed;
@@ -703,6 +774,9 @@ async function checkEpisode(ctx, id) {
     let finished = false;
     let finishedBy = '';
     let sawPlaying = false;
+    let bailedEarly = false;
+    let errored = false;
+    let prevGlLost = 0;
 
     while (Date.now() - t0 < budgetMs) {
       await sleep(200);
@@ -715,11 +789,35 @@ async function checkEpisode(ctx, id) {
           done: window.__OH_DONE === true,
           ended: H.ended != null,
           endedBy: H.endedBy || null,
+          glLost: H.glLost || 0,
         };
       }).catch(() => null);
 
       if (!s) break;
+      // Attribute a context loss to playback only if the episode was still
+      // going one poll LATER. A loss in the same 200ms window as the end card
+      // or the error card is the player disposing its stage, which is correct
+      // behaviour and must not be reported as a crash.
+      rep.glLostInPlay = prevGlLost;
+      prevGlLost = s.glLost;
       if (s.state === 'playing' || s.state === 'running') sawPlaying = true;
+
+      // Waiting out a 110-second budget for a page whose modules 404'd wastes
+      // everyone's time — the other agents run this tool every few minutes.
+      if (!sawPlaying && elapsed > 8000 && watcher && watcher.missing.size) {
+        const hard = Array.from(watcher.missing)
+          .map((m) => String(m).replace(ctx.base, ''))
+          .filter((m) => !SOFT_404.some((re) => re.test(m)));
+        if (hard.length) {
+          rep.notReady.push(
+            `gave up after ${(elapsed / 1000).toFixed(1)}s: the page never started playing and `
+            + `${hard.length} file(s) it needs are missing (${hard.slice(0, 3).join(', ')}`
+            + `${hard.length > 3 ? ', …' : ''})`,
+          );
+          bailedEarly = true;
+          break;
+        }
+      }
 
       if (elapsed >= nextShot && shotIndex < shotCount) {
         shotIndex++;
@@ -738,9 +836,17 @@ async function checkEpisode(ctx, id) {
         if (s.state === 'error') rep.failures.push('the player reported __OH_STATE="error"');
         break;
       }
-      if (await endCardVisible(page)) {
+      const card = await endCardVisible(page);
+      if (card) {
         finished = true;
-        finishedBy = 'end-card element became visible';
+        finishedBy = card;
+        if (/^error overlay/.test(card)) {
+          // The player says it could not run this episode. That is "not ready"
+          // while the episode modules are being written, and a failure once
+          // they exist — the missing-file classifier below decides which.
+          rep.notReady.push(`the player refused to run ${id}: ${card}`);
+          errored = true;
+        }
         break;
       }
     }
@@ -756,7 +862,9 @@ async function checkEpisode(ctx, id) {
     if (lastPx && lastPx.ok) samples.push(lastPx);
 
     /* ---- verdicts ---- */
-    if (!finished) {
+    if (bailedEarly || errored) {
+      rep.notes.push('stopped early — see the note above');
+    } else if (!finished) {
       if (!sawPlaying && samples.every((p) => p.colors <= 2)) {
         rep.notReady.push(
           `nothing ever rendered or finished in ${realSeconds.toFixed(1)}s — the episode module is probably not wired up yet`,
@@ -769,12 +877,16 @@ async function checkEpisode(ctx, id) {
       }
     } else {
       rep.notes.push(`finished after ${realSeconds.toFixed(1)}s wall clock via ${finishedBy}`);
-      rep.notes.push(
-        effectiveSpeed > 1
-          ? `≈${normalised.toFixed(1)}s at normal speed (measured at ${effectiveSpeed}x)`
-          : `${normalised.toFixed(1)}s at normal speed`,
-      );
-      if (normalised < TARGET_MIN_S || normalised > TARGET_MAX_S) {
+      if (effectiveSpeed > 1) {
+        rep.notes.push(
+          `≈${normalised.toFixed(1)}s of show time (${realSeconds.toFixed(1)}s x ${effectiveSpeed}). `
+          + `Anything the page times outside rAF/setTimeout does not speed up, so treat this as an upper bound `
+          + `and confirm the ${TARGET_MIN_S}-${TARGET_MAX_S}s target with a run at normal speed.`,
+        );
+        if (normalised > TARGET_MAX_S * 1.6) {
+          rep.warnings.push(`even allowing for fast-forward slop, ${normalised.toFixed(1)}s looks long`);
+        }
+      } else if (normalised < TARGET_MIN_S || normalised > TARGET_MAX_S) {
         rep.warnings.push(
           `runtime ${normalised.toFixed(1)}s is outside the ${TARGET_MIN_S}-${TARGET_MAX_S}s target`,
         );
@@ -784,7 +896,9 @@ async function checkEpisode(ctx, id) {
     }
 
     /* ---- did anything actually get drawn ---- */
-    if (!samples.length) {
+    if (bailedEarly || errored) {
+      /* nothing to say: the page never got as far as drawing */
+    } else if (!samples.length) {
       rep.notReady.push('never managed to sample the canvas (no canvas, or nothing rendered)');
     } else {
       const best = samples.reduce((a, b) => (b.stdDev > a.stdDev ? b : a));
@@ -813,21 +927,24 @@ async function checkEpisode(ctx, id) {
       }
     }
 
-    await contactSheet(page, rep.shots, path.join(ctx.out, `${id}-grid.png`)).then((p) => {
-      if (p) rep.shots.push(p);
-    }).catch(() => {});
+    const grid = await contactSheet(ctx.browser, rep.shots, path.join(ctx.out, `${id}-grid.png`))
+      .catch((err) => {
+        rep.warnings.push(`contact sheet failed: ${err && err.message}`);
+        return null;
+      });
+    if (grid) rep.shots.push(grid);
   });
 }
 
 /**
  * Composites the stills into one contact sheet, because six paths in a
  * terminal are harder to read than one picture.
- * @param {import('playwright-core').Page} page a page to borrow for rendering
+ * @param {import('playwright-core').Browser} browser
  * @param {string[]} shots
  * @param {string} outFile
  * @returns {Promise<string|null>}
  */
-async function contactSheet(page, shots, outFile) {
+async function contactSheet(browser, shots, outFile) {
   const usable = [];
   for (const s of shots) {
     try {
@@ -848,7 +965,7 @@ async function contactSheet(page, shots, outFile) {
     figure{margin:0}img{width:${cellW}px;display:block;image-rendering:pixelated;background:#000}
     figcaption{padding:2px 0}
   </style><div class="g">${usable.map((u) => `<figure><img src="${u.uri}"><figcaption>${u.name}</figcaption></figure>`).join('')}</div>`;
-  const sheet = await page.context().newPage();
+  const sheet = await browser.newPage({ viewport: { width: 640, height: 480 } });
   try {
     await sheet.setViewportSize({ width: cols * cellW + 8 * (cols + 1), height: rows * cellH + 8 * (rows + 1) });
     await sheet.setContent(html, { waitUntil: 'load' });
@@ -876,23 +993,27 @@ export function probePlayerHooks() {
   }
   const hooks = [];
   const probes = [
+    ['__OH_FAST_FORWARD', /__OH_FAST_FORWARD\b/],
     ['__OH_SPEED', /__OH_SPEED\b/],
     ['__OH_SPEED_HANDLED', /__OH_SPEED_HANDLED/],
     ['__OH_TEST', /__OH_TEST\b/],
     ['__OH_STATE', /__OH_STATE\b/],
     ['__OH_DONE', /__OH_DONE\b/],
-    ['oh-episode-end', /oh-episode-end/],
-    ['__OH_POSTER', /__OH_POSTER\b/],
-    ['poster=1', /poster/],
-    ['data-oh-play', /data-oh-play/],
+    ['oh:episode-ended', /oh:episode-ended/],
+    ['__OH_POSTER_READY', /__OH_POSTER_READY\b/],
+    ['data-oh-poster', /data-oh-poster/],
   ];
   for (const [name, re] of probes) if (re.test(src)) hooks.push(name);
+  const handlesSpeed = hooks.includes('__OH_FAST_FORWARD')
+    || hooks.includes('__OH_SPEED')
+    || hooks.includes('__OH_SPEED_HANDLED');
   return {
     exists: true,
     hooks,
-    note: hooks.includes('__OH_SPEED_HANDLED')
-      ? 'player.js handles __OH_SPEED itself'
-      : 'player.js does not set __OH_SPEED_HANDLED — the harness dilates rAF time instead',
+    handlesSpeed,
+    note: handlesSpeed
+      ? 'player.js scales playback itself — the harness leaves the clock alone'
+      : 'player.js does not read a speed global — the harness dilates rAF time instead',
   };
 }
 
@@ -1015,7 +1136,14 @@ export async function main(argv = process.argv.slice(2)) {
     return 2;
   }
 
-  const ctx = { browser, base: server.url, speed: args.speed, out, watch: args.watch };
+  const ctx = {
+    browser,
+    base: server.url,
+    speed: args.speed,
+    out,
+    watch: args.watch,
+    playerHandlesSpeed: !!probe.handlesSpeed,
+  };
 
   try {
     const explicitPage = args.page !== 'all';

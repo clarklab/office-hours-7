@@ -637,9 +637,6 @@ export function createDirector(stage, ui, options = {}) {
 
   /* --------------------------------------------------------- box geometry */
 
-  /** @type {Array<{x:number,y:number,w:number,h:number}>} */
-  let keptRects = [];
-
   /**
    * Word wrap, character-identical to the dialogue layer's.
    * @param {string} text
@@ -678,6 +675,12 @@ export function createDirector(stage, ui, options = {}) {
    * @returns {{w:number, h:number}}
    */
   function estimateBox(speaker, text, maxWidth) {
+    // If the dialogue layer ever grows a real measure(), trust it over this
+    // mirror of its metrics.
+    if (ui && typeof ui.measure === 'function') {
+      const m = safe(() => ui.measure({ speaker, text, maxWidth }));
+      if (m && num(m.w, 0) > 0 && num(m.h, 0) > 0) return { w: m.w, h: m.h };
+    }
     const maxW = Math.max(90, Math.min(370, num(maxWidth, DEFAULT_MAX_W)));
     const maxChars = Math.max(8, Math.floor((maxW - FRAME * 2 - PAD_X * 2) / ADV));
     /** @type {Array<{len:number, indent:number}>} */
@@ -685,7 +688,10 @@ export function createDirector(stage, ui, options = {}) {
 
     if (speaker) {
       lines.push({ len: String(speaker).length, indent: 0 });
-      const wrapped = wrapText(`${OPEN_Q}${text == null ? '' : text}${CLOSE_Q}`, maxChars - 1);
+      // dialogue.js wraps the quoted body at `maxChars - 2`, leaving room for
+      // the two-character continuation indent. Match it exactly or the
+      // predicted height comes up a line short on the longest lines.
+      const wrapped = wrapText(`${OPEN_Q}${text == null ? '' : text}${CLOSE_Q}`, maxChars - 2);
       for (let i = 0; i < wrapped.length; i++) {
         lines.push({ len: wrapped[i].length, indent: i === 0 ? ADV : ADV * 2 });
       }
@@ -701,33 +707,6 @@ export function createDirector(stage, ui, options = {}) {
       w: Math.max(90, Math.min(maxW, content + (FRAME + PAD_X) * 2)),
       h: lines.length * LINE + (FRAME + PAD_Y) * 2 + 2,
     };
-  }
-
-  /**
-   * Where the dialogue layer will actually put a box anchored at `at`: it
-   * centres the box horizontally on the point and hangs it above, then clamps
-   * the result into the frame.
-   * @param {[number,number]} at
-   * @param {number} w
-   * @param {number} h
-   * @returns {{x:number,y:number,w:number,h:number}}
-   */
-  function rectFor(at, w, h) {
-    return {
-      x: Math.round(clamp(at[0] - w / 2, SCREEN_PAD, DESIGN_W - SCREEN_PAD - w)),
-      y: Math.round(clamp(at[1] - h - AT_GAP, SCREEN_PAD, DESIGN_H - SCREEN_PAD - h)),
-      w,
-      h,
-    };
-  }
-
-  /**
-   * @param {{x:number,y:number,w:number,h:number}} a
-   * @param {{x:number,y:number,w:number,h:number}} b
-   * @returns {boolean}
-   */
-  function overlaps(a, b) {
-    return a.x < b.x + b.w + 3 && a.x + a.w + 3 > b.x && a.y < b.y + b.h + 3 && a.y + a.h + 3 > b.y;
   }
 
   /* ============================================================ PUBLIC API */
@@ -768,7 +747,6 @@ export function createDirector(stage, ui, options = {}) {
 
     targetActor = null;
     lastCursor = null;
-    keptRects = [];
 
     callUI('targetCursor', null);
     callUI('setSkippable', false);
@@ -782,7 +760,6 @@ export function createDirector(stage, ui, options = {}) {
    */
   function reset() {
     isCancelled = false;
-    keptRects = [];
     cancelSignal = new Promise((res) => { fireCancel = res; });
   }
 
@@ -1141,6 +1118,13 @@ export function createDirector(stage, ui, options = {}) {
    *
    * `say(null, text)` is narration: no name line, narrator voice, bottom-centre.
    *
+   * Two notes from the dialogue layer, both of which bite episodes:
+   * - a box's id defaults to the speaker's lowercased name, so a second line
+   *   from the same character REPLACES the first. To hold two lines from one
+   *   character on screen at once, pass distinct `id`s along with `keep:true`.
+   * - `color` is accepted and ignored: per ref 02 the name line is plain white
+   *   with no coloured plate. The accent colour only shows up on name cards.
+   *
    * @param {import('../characters/rig.js').Actor|null} actor
    * @param {string} text
    * @param {Object} [o] any SayOpts — `cps`, `hold`, `keep`, `anchor`, `at`, `maxWidth`, `pos`, `auto`
@@ -1168,13 +1152,6 @@ export function createDirector(stage, ui, options = {}) {
       if (a) opts.at = boxAt(a, size);
       else opts.anchor = 'bm';
     }
-    // Only boxes held with `keep:true` stay on screen, so only those need to be
-    // dodged by the next one. They are forgotten on closeBoxes()/cancel().
-    if (opts.keep && Array.isArray(opts.at)) {
-      keptRects.push(rectFor(opts.at, size.w, size.h));
-      if (keptRects.length > 6) keptRects.shift();
-    }
-
     let prevAnim = 'idle';
     if (a) {
       if (typeof a.current === 'function') prevAnim = safe(() => a.current()) || 'idle';
@@ -1206,9 +1183,9 @@ export function createDirector(stage, ui, options = {}) {
    * The dialogue layer centres a box on this point and hangs it *above*, so the
    * returned `[x,y]` is a point just over the actor's head. When there is no
    * room above (the actor is high in frame) the anchor is pushed down so the
-   * box lands under them instead, and it is nudged clear of any box currently
-   * held on screen with `keep:true` — that is the two-boxes-at-once shot from
-   * ref 04.
+   * box lands under them instead. Boxes still on screen are dialogue.js's
+   * problem: it steps a new box off any live box and off the battle HUD, which
+   * is how the two-boxes-at-once shot from ref 04 stays readable.
    *
    * @param {import('../characters/rig.js').Actor|null} actor
    * @param {{w?:number, h?:number, gap?:number}} [size] expected box metrics; defaults to a typical 3-line box
@@ -1247,18 +1224,10 @@ export function createDirector(stage, ui, options = {}) {
     x = clamp(x, Math.min(minX, DESIGN_W / 2), Math.max(maxX, DESIGN_W / 2));
     y = clamp(y, minY, Math.max(minY, maxY));
 
-    // Slide clear of anything being kept on screen.
-    for (let i = 0; i < 6; i++) {
-      const hit = keptRects.find((r) => overlaps(rectFor([x, y], w, h), r));
-      if (!hit) break;
-      const below = hit.y + hit.h + 4 + h + AT_GAP;
-      const above = hit.y - 4;
-      if (above >= minY) y = above;
-      else if (below <= maxY) y = below;
-      else break;
-    }
-
-    return [Math.round(x), Math.round(clamp(y, minY, Math.max(minY, maxY)))];
+    // No collision pass here on purpose: dialogue.js already steps a new box
+    // off any box still on screen and off the battle HUD. Dodging twice just
+    // fights it.
+    return [Math.round(x), Math.round(y)];
   }
 
   /**
@@ -1267,7 +1236,6 @@ export function createDirector(stage, ui, options = {}) {
    * @returns {void}
    */
   function closeBoxes(ids = null) {
-    keptRects = [];
     callUI('closeBoxes', ids);
   }
 

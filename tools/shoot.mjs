@@ -17,16 +17,19 @@
  * smoothing off, so the result is true nearest-neighbour: the PS1 pixel grid
  * survives at poster size.
  *
- * ## The poster contract
- * When `?poster=1` is in the URL (and `window.__OH_POSTER === true`, which this
- * tool sets before any script runs) `/js/player.js` should:
- * 1. build the stage, the office and the cast exactly as for playback,
- * 2. skip the idle/title screen and any PLAY affordance,
- * 3. call the episode's `poster(ctx)` and render at least one frame,
- * 4. set `window.__OH_POSTER_READY = true` and dispatch an `oh-poster-ready`
- *    event on `window`.
+ * ## The poster contract (as /js/player.js implements it)
+ * With `?poster=1` in the URL — and `window.__OH_POSTER === true`, which this
+ * tool also sets before any script runs — the player:
+ * 1. builds the stage, the office and the cast exactly as for playback,
+ * 2. skips the idle screen and the PLAY affordance,
+ * 3. calls the episode's `poster(ctx)`, renders ~30 frames and stops the loop
+ *    on that frame (the canvas keeps its `preserveDrawingBuffer` contents),
+ * 4. sets `window.__OH_POSTER_READY = true`, sets `<html data-oh-poster="ready">`
+ *    and dispatches `oh:poster-ready` on `window`.
  *
- * Without step 4 the tool still shoots, after `--wait` ms, and says so.
+ * On failure it sets `window.__OH_POSTER_ERROR` to a message and
+ * `<html data-oh-poster="error">`; this tool reports that instead of waiting.
+ * With no signal at all it still shoots after `--wait` ms and says so.
  *
  * @module tools/shoot
  */
@@ -101,7 +104,7 @@ function grabCanvas(o) {
  * Shoots one episode.
  * @param {Object} ctx
  * @param {string} id
- * @returns {Promise<{id:string, ok:boolean, file?:string, note:string}>}
+ * @returns {Promise<{id:string, ok:boolean, notReady?:boolean, file?:string, note:string}>}
  */
 async function shoot(ctx, id) {
   const url = `${ctx.base}/watch.html?ep=${id}&poster=1`;
@@ -117,19 +120,37 @@ async function shoot(ctx, id) {
     await page.addInitScript(harnessInit, { speed: 1, poster: true });
     const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     if (res && res.status() === 404) {
-      return { id, ok: false, note: '/watch.html does not exist yet (HTTP 404) — not ready' };
+      return { id, ok: false, notReady: true, note: '/watch.html does not exist yet (HTTP 404)' };
     }
 
     let signalled = false;
     try {
       await page.waitForFunction(
-        () => window.__OH_POSTER_READY === true,
+        () => window.__OH_POSTER_READY === true
+          || typeof window.__OH_POSTER_ERROR === 'string'
+          || document.documentElement.getAttribute('data-oh-poster') === 'ready'
+          || document.documentElement.getAttribute('data-oh-poster') === 'error',
         null,
         { timeout: ctx.wait },
       );
       signalled = true;
     } catch {
       /* fall through to the fixed settle below */
+    }
+
+    const posterError = await page.evaluate(
+      () => (typeof window.__OH_POSTER_ERROR === 'string' ? window.__OH_POSTER_ERROR : null),
+    ).catch(() => null);
+    if (posterError) {
+      // "not available yet" is an episode nobody has written; anything else is
+      // a real problem in a page that does exist.
+      const pending = /not available|not found|has not been (filmed|shot)|404/i.test(posterError);
+      return {
+        id,
+        ok: false,
+        notReady: pending,
+        note: `the player could not pose ${id}: ${posterError}`,
+      };
     }
 
     // Let the wobble and the fluorescent flicker land on a frame either way.
@@ -140,6 +161,7 @@ async function shoot(ctx, id) {
       return {
         id,
         ok: false,
+        notReady: /no WebGL canvas/.test((grab && grab.reason) || ''),
         note: `${(grab && grab.reason) || 'nothing to capture'}${problems.length ? ` — first problem: ${problems[0]}` : ''}`,
       };
     }
@@ -164,6 +186,7 @@ async function shoot(ctx, id) {
   } catch (err) {
     return { id, ok: false, note: `${(err && err.message) || err}` };
   } finally {
+    /* the page always closes, shot or not */
     await page.close().catch(() => {});
   }
 }
@@ -211,18 +234,25 @@ export async function main(argv = process.argv.slice(2)) {
     await server.close().catch(() => {});
   }
 
-  let bad = 0;
+  let written = 0;
+  let pending = 0;
+  let broken = 0;
   for (const r of results) {
-    if (r.ok) console.log(`  OK        ${r.file}  (${r.note})`);
-    else {
-      bad++;
+    if (r.ok) {
+      written++;
+      console.log(`  OK        ${r.file}  (${r.note})`);
+    } else if (r.notReady) {
+      pending++;
       console.log(`  NOT READY ${r.id}: ${r.note}`);
+    } else {
+      broken++;
+      console.log(`  FAILED    ${r.id}: ${r.note}`);
     }
   }
-  console.log(`SHOOT: ${results.length - bad} written, ${bad} skipped`);
-  // Missing episodes are expected while the show is being built, so a skip is
-  // not an error; only a total wipe-out is worth a non-zero exit.
-  return bad === results.length && results.length > 0 ? 1 : 0;
+  console.log(`SHOOT: ${written} written, ${pending} not ready, ${broken} failed`);
+  // An episode nobody has written yet is expected while the show is being
+  // built; a page that exists and still cannot produce a frame is not.
+  return broken ? 1 : 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

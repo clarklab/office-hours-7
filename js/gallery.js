@@ -129,82 +129,125 @@ function raf1(fn) {
  * the procedural poster plate
  * ------------------------------------------------------------------ */
 
-/** Design space the plate art is composed in. Scaled up to the element's real size. */
+/** Design space the plate art is composed in, then scaled to whatever box it lands in. */
 const PLATE_W = 256;
 const PLATE_H = 144;
 
-/** Horizon: where the back wall meets the carpet. */
-const HORIZON = PLATE_H * 0.545;
+/** Ceiling band, window band and the wall/floor junction, in design-space pixels. */
+const CEIL = 20;
+const WIN_TOP = 40;
+const WIN_BOT = 82;
+const HORIZON = 88;
 
 /**
- * A dark silhouette block with a thin rim of light along its top edge — the whole
- * set is read in silhouette against the fluorescents, exactly like the real scenes.
+ * A solid form with a rim of light along its top and left edges — the office is lit
+ * from the ceiling and the window wall, so that is where the light lands.
  *
  * @param {CanvasRenderingContext2D} c
  * @param {number} x @param {number} y @param {number} w @param {number} h
- * @param {string} rim rim-light colour
- * @param {number} [rimAlpha=0.5]
+ * @param {string} fill
+ * @param {string} rim
+ * @param {number} [top=0.5] rim alpha along the top edge
+ * @param {number} [side=0.22] rim alpha down the left edge
  */
-function block(c, x, y, w, h, rim, rimAlpha = 0.5) {
-  c.fillStyle = '#04060a';
+function slab(c, x, y, w, h, fill, rim, top = 0.5, side = 0.22) {
+  c.fillStyle = fill;
   c.fillRect(x, y, w, h);
-  c.globalAlpha = rimAlpha;
-  c.fillStyle = rim;
-  c.fillRect(x, y, w, 1);
-  c.globalAlpha = 1;
+  if (top > 0) {
+    c.globalAlpha = top;
+    c.fillStyle = rim;
+    c.fillRect(x, y, w, 0.9);
+    c.globalAlpha = 1;
+  }
+  if (side > 0) {
+    c.globalAlpha = side;
+    c.fillStyle = rim;
+    c.fillRect(x, y, 0.9, h);
+    c.globalAlpha = 1;
+  }
 }
 
 /**
- * A standing person, in the blocky PS1 proportions the show uses: slab torso,
- * oversized head, no detail below the knee that matters at this size.
+ * A standing person in the show's blocky PS1 proportions: two leg chunks, a slab
+ * torso, an oversized head. Silhouetted against the window wall, which is why every
+ * figure is placed so its head reaches eye level.
  *
  * @param {CanvasRenderingContext2D} c
  * @param {number} x centre
  * @param {number} groundY feet
  * @param {number} h total height
- * @param {string} rim
+ * @param {string} rim accent for the rim light
  */
 function figure(c, x, groundY, h, rim) {
-  const headH = h * 0.22;
-  const bodyH = h * 0.44;
-  const legH = h - headH - bodyH;
-  const bodyW = h * 0.30;
+  const headH = h * 0.21;
   const headW = h * 0.20;
+  const torsoH = h * 0.40;
+  const torsoW = h * 0.32;
+  const legH = h - headH - torsoH;
+  const legW = torsoW * 0.30;
+  const body = '#080d14';
 
-  block(c, x - bodyW * 0.36, groundY - legH, bodyW * 0.72, legH, rim, 0.18);
-  block(c, x - bodyW / 2, groundY - legH - bodyH, bodyW, bodyH, rim, 0.34);
-  block(c, x - headW / 2, groundY - h, headW, headH, rim, 0.62);
+  slab(c, x - torsoW * 0.40, groundY - legH, legW, legH, body, rim, 0.12, 0.10);
+  slab(c, x + torsoW * 0.10, groundY - legH, legW, legH, body, rim, 0.12, 0.10);
+  slab(c, x - torsoW / 2, groundY - legH - torsoH, torsoW, torsoH, body, rim, 0.42, 0.26);
+  slab(c, x - headW / 2, groundY - h, headW, headH, body, rim, 0.72, 0.34);
 }
 
 /**
- * The dog. Four short legs, a body slab, a wedge head, one ear up.
+ * A person sitting behind a table: head and shoulders only, which is all a meeting
+ * ever shows anyway.
+ *
+ * @param {CanvasRenderingContext2D} c
+ * @param {number} x @param {number} baseY where the table edge cuts them off
+ * @param {number} h visible height @param {string} rim
+ */
+function seated(c, x, baseY, h, rim) {
+  const headH = h * 0.40;
+  const headW = h * 0.36;
+  const torsoW = h * 0.62;
+  const body = '#080d14';
+  slab(c, x - torsoW / 2, baseY - (h - headH), torsoW, h - headH, body, rim, 0.38, 0.22);
+  slab(c, x - headW / 2, baseY - h, headW, headH, body, rim, 0.7, 0.32);
+}
+
+/**
+ * The dog. Body slab, four stumps, a wedge head, one ear up.
  *
  * @param {CanvasRenderingContext2D} c
  * @param {number} x @param {number} groundY @param {number} h @param {string} rim
  */
 function dog(c, x, groundY, h, rim) {
-  const bodyW = h * 1.35;
-  block(c, x - bodyW / 2, groundY - h * 0.72, bodyW, h * 0.42, rim, 0.45);
-  block(c, x - bodyW * 0.42, groundY - h * 0.32, h * 0.16, h * 0.32, rim, 0.12);
-  block(c, x + bodyW * 0.26, groundY - h * 0.32, h * 0.16, h * 0.32, rim, 0.12);
-  block(c, x + bodyW * 0.34, groundY - h, h * 0.42, h * 0.40, rim, 0.6);
-  c.fillStyle = '#04060a';
+  const body = '#080d14';
+  const bw = h * 1.18;
+  const legH = h * 0.30;
+  slab(c, x - bw / 2, groundY - h * 0.82, bw, h * 0.52, body, rim, 0.85, 0.45);
+  slab(c, x - bw * 0.40, groundY - legH, h * 0.18, legH, body, rim, 0.12, 0.1);
+  slab(c, x + bw * 0.22, groundY - legH, h * 0.18, legH, body, rim, 0.12, 0.1);
+  slab(c, x + bw * 0.22, groundY - h, h * 0.42, h * 0.40, body, rim, 0.92, 0.5);
+  // one ear up, one floppy
+  c.fillStyle = body;
   c.beginPath();
-  c.moveTo(x + bodyW * 0.36, groundY - h);
-  c.lineTo(x + bodyW * 0.44, groundY - h * 1.28);
-  c.lineTo(x + bodyW * 0.60, groundY - h * 0.98);
+  c.moveTo(x + bw * 0.24, groundY - h);
+  c.lineTo(x + bw * 0.30, groundY - h * 1.30);
+  c.lineTo(x + bw * 0.46, groundY - h * 0.97);
   c.closePath();
   c.fill();
-  c.fillStyle = '#04060a';
-  c.fillRect(x - bodyW * 0.58, groundY - h * 0.78, h * 0.22, h * 0.12);
+  // tail, keeping perfect time
+  c.fillStyle = body;
+  c.beginPath();
+  c.moveTo(x - bw * 0.48, groundY - h * 0.72);
+  c.lineTo(x - bw * 0.76, groundY - h * 1.02);
+  c.lineTo(x - bw * 0.62, groundY - h * 0.62);
+  c.closePath();
+  c.fill();
 }
 
 /**
- * Draws one episode's poster plate: a PS1 office scene in silhouette under a
- * carpet-tile perspective grid, tinted with the episode accent.
+ * Draws one episode's poster plate: the MULCH office in silhouette against its window
+ * wall, staged differently for each episode and graded with that episode's accent.
  *
- * This is what the card shows until `/assets/thumbs/epN.png` exists. It is meant to
- * be the artwork, not an apology for a missing file.
+ * This is the card artwork until `/assets/thumbs/epN.png` exists, and it is also the
+ * backdrop on the player's title card. It is meant to be the art, not an apology.
  *
  * @param {CanvasRenderingContext2D} c
  * @param {import('/js/episodes/index.js').EpisodeMeta} ep
@@ -217,172 +260,250 @@ function drawPlate(c, ep) {
 
   c.clearRect(0, 0, W, H);
 
-  /* --- back wall + ceiling wash --- */
-  const wall = c.createLinearGradient(0, 0, 0, HORIZON);
-  wall.addColorStop(0, '#12202f');
-  wall.addColorStop(1, '#070c14');
+  /* --- wall --- */
+  const wall = c.createLinearGradient(0, CEIL, 0, HORIZON);
+  wall.addColorStop(0, '#1a2431');
+  wall.addColorStop(1, '#0d1621');
   c.fillStyle = wall;
   c.fillRect(0, 0, W, HORIZON);
 
-  const glow = c.createRadialGradient(cx, -H * 0.12, 0, cx, -H * 0.12, H * 0.95);
-  glow.addColorStop(0, A);
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  c.globalAlpha = 0.16;
-  c.fillStyle = glow;
-  c.fillRect(0, 0, W, HORIZON);
-  c.globalAlpha = 1;
+  /* --- window wall: the city, flat and pre-rendered, exactly like a PS1 field --- */
+  const sky = c.createLinearGradient(0, WIN_TOP, 0, WIN_BOT);
+  sky.addColorStop(0, '#20344d');
+  sky.addColorStop(0.62, '#33506f');
+  sky.addColorStop(1, '#40617f');
+  c.fillStyle = sky;
+  c.fillRect(0, WIN_TOP, W, WIN_BOT - WIN_TOP);
 
-  /* --- fluorescent ceiling panels, in perspective --- */
-  for (let i = 0; i < 3; i++) {
-    const t = i / 2;
-    const y = 3 + i * 7;
-    const half = W * (0.46 - i * 0.085);
-    c.globalAlpha = 0.5 - i * 0.13;
-    c.fillStyle = '#cfe2f5';
-    c.fillRect(cx - half, y, half * 2, 2.2 - t);
-  }
-  c.globalAlpha = 1;
-
-  /* --- window band: a flat PS1 cityscape --- */
-  const wy = HORIZON - 30;
-  c.fillStyle = '#060c16';
-  c.fillRect(0, wy, W, 22);
-  c.globalAlpha = 0.5;
-  c.fillStyle = '#2b4fa8';
-  c.fillRect(0, wy, W, 22);
-  c.globalAlpha = 1;
-  let bx = 4;
-  let n = 0;
-  while (bx < W - 4) {
-    const bw = 7 + ((n * 13) % 11);
-    const bh = 6 + ((n * 7) % 15);
-    c.fillStyle = '#04060a';
-    c.fillRect(bx, wy + 22 - bh, bw, bh);
+  let bx = -3;
+  let n = 3;
+  while (bx < W + 3) {
+    const bw = 8 + ((n * 13) % 13);
+    const bh = 9 + ((n * 17) % 20);
+    c.fillStyle = '#0e1622';
+    c.fillRect(bx, WIN_BOT - bh, bw, bh);
     c.fillStyle = '#ffd9a0';
-    c.globalAlpha = 0.5;
-    for (let r = 0; r < Math.floor(bh / 4); r++) {
-      if ((n + r) % 3 === 0) c.fillRect(bx + 2, wy + 24 - bh + r * 4, 2, 2);
+    for (let r = 0; r < Math.floor(bh / 5); r++) {
+      for (let q = 0; q < Math.floor(bw / 4); q++) {
+        if ((n + r * 3 + q * 5) % 4 !== 0) continue;
+        c.globalAlpha = 0.28 + ((n + r + q) % 3) * 0.16;
+        c.fillRect(bx + 1.6 + q * 4, WIN_BOT - bh + 2 + r * 5, 1.6, 2);
+      }
     }
     c.globalAlpha = 1;
     bx += bw + 2;
     n++;
   }
-  c.globalAlpha = 0.45;
-  c.fillStyle = '#9fb6cf';
-  c.fillRect(0, wy, W, 1);
-  c.fillRect(0, wy + 21, W, 1);
+
+  // mullions + sill
+  c.globalAlpha = 0.34;
+  c.fillStyle = '#0b1119';
+  for (let x = 10; x < W; x += 43) c.fillRect(x, WIN_TOP, 1.2, WIN_BOT - WIN_TOP);
+  c.globalAlpha = 1;
+  c.fillStyle = '#0b1119';
+  c.fillRect(0, WIN_TOP - 2, W, 2.4);
+  c.fillRect(0, WIN_BOT, W, 2.4);
+  c.globalAlpha = 0.28;
+  c.fillStyle = '#c9d8e8';
+  c.fillRect(0, WIN_BOT + 2.4, W, 0.9);
   c.globalAlpha = 1;
 
-  /* --- carpet + perspective grid --- */
+  /* --- drop ceiling: tee bars, and the fluorescents that light the whole show --- */
+  c.fillStyle = '#080e15';
+  c.fillRect(0, 0, W, CEIL);
+  c.strokeStyle = '#2a3a4c';
+  c.lineWidth = 0.6;
+  c.globalAlpha = 0.5;
+  c.beginPath();
+  for (let i = -5; i <= 5; i++) {
+    c.moveTo(cx + i * 60, 0);
+    c.lineTo(cx + i * 13, CEIL);
+  }
+  c.moveTo(0, CEIL * 0.55);
+  c.lineTo(W, CEIL * 0.55);
+  c.stroke();
+  c.globalAlpha = 1;
+
+  // Fluorescent panels, in two runs receding to the vanishing point with the dark
+  // tee-bar between them. Hard-edged: a bloom would read as a smear at thumbnail size.
+  const rows = [[2.0, 112, 30, 4.4, 0.82], [9.2, 68, 18, 2.9, 0.5], [14.8, 41, 11, 1.8, 0.28]];
+  for (const [y, outer, inner, th, alpha] of rows) {
+    c.globalAlpha = alpha;
+    c.fillStyle = '#eef5ff';
+    for (const side of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(cx + side * outer, y);
+      c.lineTo(cx + side * inner, y);
+      c.lineTo(cx + side * inner * 0.72, y + th);
+      c.lineTo(cx + side * outer * 0.72, y + th);
+      c.closePath();
+      c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+
+  // the accent grade, poured in from the ceiling
+  const wash = c.createRadialGradient(cx, -4, 0, cx, -4, H * 1.05);
+  wash.addColorStop(0, A);
+  wash.addColorStop(1, 'rgba(0,0,0,0)');
+  c.globalAlpha = 0.13;
+  c.fillStyle = wash;
+  c.fillRect(0, 0, W, H);
+  c.globalAlpha = 1;
+
+  /* --- carpet --- */
   const floor = c.createLinearGradient(0, HORIZON, 0, H);
-  floor.addColorStop(0, '#0a1119');
-  floor.addColorStop(1, '#04060a');
+  floor.addColorStop(0, '#131c26');
+  floor.addColorStop(1, '#05080d');
   c.fillStyle = floor;
   c.fillRect(0, HORIZON, W, H - HORIZON);
 
   c.strokeStyle = A;
-  c.lineWidth = 0.6;
-  c.globalAlpha = 0.26;
+  c.lineWidth = 0.55;
+  c.globalAlpha = 0.17;
   c.beginPath();
-  for (let i = -9; i <= 9; i++) {
+  for (let i = -6; i <= 6; i++) {
     c.moveTo(cx, HORIZON);
-    c.lineTo(cx + i * (W * 0.20), H);
+    c.lineTo(cx + i * (W * 0.30), H);
   }
-  for (let k = 1; k <= 7; k++) {
-    const y = HORIZON + (H - HORIZON) * (1 - 1 / (1 + k * 0.52));
+  for (let k = 1; k <= 5; k++) {
+    const y = HORIZON + (H - HORIZON) * (1 - 1 / (1 + k * 0.62));
     c.moveTo(0, y);
     c.lineTo(W, y);
   }
   c.stroke();
   c.globalAlpha = 1;
 
-  c.globalAlpha = 0.55;
-  c.fillStyle = A;
-  c.fillRect(0, HORIZON - 0.5, W, 1);
-  c.globalAlpha = 1;
-
-  /* --- per-episode staging --- */
+  /* --- staging --- */
   if (ep.id === 'ep1') {
-    // STANDUP: five people in a line, a whiteboard behind them.
-    block(c, cx - 44, HORIZON - 26, 62, 24, '#cfe2f5', 0.32);
-    c.globalAlpha = 0.20;
-    c.fillStyle = '#cfe2f5';
-    c.fillRect(cx - 39, HORIZON - 21, 34, 1.4);
-    c.fillRect(cx - 39, HORIZON - 16, 44, 1.4);
-    c.fillRect(cx - 39, HORIZON - 11, 22, 1.4);
-    c.globalAlpha = 1;
-    const spots = [[46, 40], [86, 44], [128, 47], [170, 45], [210, 41]];
-    for (const [x, h] of spots) figure(c, x, H - 6 + (h - 44) * 0.3, h, A);
-  } else if (ep.id === 'ep2') {
-    // RUNWAY: the meeting table, and a chart that only goes one way.
-    block(c, cx - 52, HORIZON - 34, 104, 32, '#cfe2f5', 0.3);
-    c.strokeStyle = '#ff6a5e';
+    // STANDUP: a whiteboard on wheels, and five people arranged in a receding line.
+    c.fillStyle = '#0b1119';
+    c.fillRect(32, 48, 70, 40);
+    c.fillStyle = '#c3d1e0';
+    c.fillRect(34, 50, 66, 36);
+    c.globalAlpha = 0.55;
+    c.fillStyle = '#25313f';
+    c.fillRect(40, 57, 42, 1.6);
+    c.fillRect(40, 64, 54, 1.6);
+    c.fillRect(40, 71, 28, 1.6);
+    c.globalAlpha = 0.85;
+    c.strokeStyle = '#c0453c';
     c.lineWidth = 1.4;
-    c.globalAlpha = 0.9;
     c.beginPath();
-    c.moveTo(cx - 45, HORIZON - 30);
-    c.lineTo(cx - 20, HORIZON - 22);
-    c.lineTo(cx + 4, HORIZON - 14);
-    c.lineTo(cx + 44, HORIZON - 5);
+    c.moveTo(66, 76);
+    c.lineTo(92, 80);
     c.stroke();
     c.globalAlpha = 1;
-    for (const [x, h] of [[40, 40], [78, 43], [178, 43], [216, 40]]) {
-      figure(c, x, H - 14 + (h - 42) * 0.3, h, A);
+    c.fillStyle = '#0c141d';
+    c.fillRect(40, 88, 2.4, 16);
+    c.fillRect(92, 88, 2.4, 16);
+    for (const [x, g, h] of [[112, 100, 30], [142, 106, 36], [170, 114, 44], [200, 124, 54], [228, 136, 66]]) {
+      figure(c, x, g, h, A);
     }
-    c.fillStyle = '#060b14';
+  } else if (ep.id === 'ep2') {
+    // RUNWAY: the pull-down screen, the table, and a line that only goes one way.
+    c.fillStyle = '#0b1119';
+    c.fillRect(80, 34, 100, 50);
+    c.fillStyle = '#b9c7d6';
+    c.fillRect(82, 36, 96, 46);
+    c.globalAlpha = 0.45;
+    c.strokeStyle = '#3a4756';
+    c.lineWidth = 0.7;
     c.beginPath();
-    c.moveTo(cx - 92, H - 4);
-    c.lineTo(cx + 92, H - 4);
-    c.lineTo(cx + 46, H - 34);
-    c.lineTo(cx - 46, H - 34);
+    c.moveTo(89, 42);
+    c.lineTo(89, 76);
+    c.lineTo(172, 76);
+    c.stroke();
+    c.globalAlpha = 1;
+    c.strokeStyle = '#c0453c';
+    c.lineWidth = 1.8;
+    c.beginPath();
+    c.moveTo(90, 44);
+    c.lineTo(112, 53);
+    c.lineTo(134, 62);
+    c.lineTo(171, 75);
+    c.stroke();
+
+    for (const [x, b, h] of [[70, 106, 26], [104, 108, 28], [152, 108, 28], [186, 106, 26]]) {
+      seated(c, x, b, h, A);
+    }
+    figure(c, 222, 120, 48, A);
+
+    // the table, in perspective, cutting everyone off at the elbows
+    c.fillStyle = '#101922';
+    c.beginPath();
+    c.moveTo(cx - 104, H);
+    c.lineTo(cx + 104, H);
+    c.lineTo(cx + 46, 104);
+    c.lineTo(cx - 46, 104);
     c.closePath();
     c.fill();
     c.globalAlpha = 0.55;
-    c.strokeStyle = A;
-    c.lineWidth = 1;
-    c.stroke();
+    c.fillStyle = A;
+    c.fillRect(cx - 46, 104, 92, 1);
     c.globalAlpha = 1;
   } else {
-    // TUESDAY: a dog, a lot of empty carpet, and a target cursor.
-    for (const [x, h] of [[30, 40], [64, 43], [196, 43], [228, 40]]) {
-      figure(c, x, H - 18 + (h - 42) * 0.3, h, A);
+    // TUESDAY: a dog, a lot of carpet, and a target cursor nobody agreed on.
+    // two desks, on the carpet where desks live
+    slab(c, 2, 90, 64, 5, '#1c2633', A, 0.5, 0.2);
+    slab(c, 8, 95, 52, 13, '#0e1620', A, 0.14, 0.12);
+    slab(c, 196, 94, 58, 6, '#1c2633', A, 0.5, 0.2);
+    slab(c, 201, 100, 48, 14, '#0e1620', A, 0.14, 0.12);
+
+    for (const [x, g, h] of [[86, 104, 34], [216, 116, 46], [242, 106, 36]]) {
+      figure(c, x, g, h, A);
     }
-    block(c, 96, HORIZON - 20, 30, 18, '#cfe2f5', 0.22);
-    dog(c, cx + 4, H - 14, 26, A);
+
+    // a pool of fluorescent light on the carpet, so the star of the episode reads
+    const pool = c.createRadialGradient(150, 124, 1, 150, 124, 26);
+    pool.addColorStop(0, 'rgba(210,228,248,0.20)');
+    pool.addColorStop(1, 'rgba(210,228,248,0)');
+    c.fillStyle = pool;
+    c.fillRect(120, 100, 62, 44);
+
+    dog(c, 150, 124, 28, A);
+
+    // the battle cursor, hovering over the only competent party member
     c.fillStyle = '#ffce4a';
     c.beginPath();
-    c.moveTo(cx - 3, H - 52);
-    c.lineTo(cx + 11, H - 52);
-    c.lineTo(cx + 4, H - 44);
+    c.moveTo(140, 80);
+    c.lineTo(160, 80);
+    c.lineTo(150, 91);
     c.closePath();
     c.fill();
+    c.globalAlpha = 0.4;
+    c.fillRect(140, 75, 20, 2);
+    c.globalAlpha = 1;
   }
 
-  /* --- dither-ish scanlines, baked so they survive any scale --- */
-  c.globalAlpha = 0.22;
+  /* --- scanlines, baked so they survive any scale --- */
+  c.globalAlpha = 0.20;
   c.fillStyle = '#000';
   for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
   c.globalAlpha = 1;
 
   /* --- vignette --- */
-  const vig = c.createRadialGradient(cx, H * 0.46, H * 0.18, cx, H * 0.46, H * 0.95);
+  const vig = c.createRadialGradient(cx, H * 0.46, H * 0.20, cx, H * 0.46, H * 0.92);
   vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.72)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.70)');
   c.fillStyle = vig;
   c.fillRect(0, 0, W, H);
 }
 
 /**
- * Sizes a plate canvas to its box at device resolution and redraws it in the
- * 256x144 design space. Called on mount and on every resize.
+ * Sizes a plate canvas to its box at device resolution and redraws the episode's
+ * poster in the 256x144 design space. Used by the gallery cards and, on the player,
+ * behind the title card.
  *
  * @param {HTMLCanvasElement} canvas
  * @param {import('/js/episodes/index.js').EpisodeMeta} ep
+ * @param {{width?:number, height?:number}} [box] explicit CSS size; defaults to the element's
  */
-function paintPlate(canvas, ep) {
-  const box = canvas.getBoundingClientRect();
-  const w = Math.max(64, Math.round(box.width || PLATE_W));
-  const h = Math.max(36, Math.round(box.height || PLATE_H));
+export function paintPlate(canvas, ep, box) {
+  if (!canvas || !ep) return;
+  const rect = box || canvas.getBoundingClientRect();
+  const w = Math.max(64, Math.round(rect.width || PLATE_W));
+  const h = Math.max(36, Math.round(rect.height || PLATE_H));
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);

@@ -237,7 +237,7 @@ button {
 .hero {
   position: relative;
   z-index: 1;
-  padding-block: clamp(28px, 6vw, 68px) clamp(36px, 7vw, 84px);
+  padding-block: clamp(26px, 5vw, 56px) clamp(24px, 4vw, 52px);
   text-align: center;
 }
 
@@ -363,16 +363,17 @@ button {
 .episodes {
   display: grid;
   gap: clamp(16px, 2vw, 24px);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 760px) {
-  .episodes { grid-template-columns: repeat(3, 1fr); }
+  .episodes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .ep {
   --accent: var(--oh-silver);
   position: relative;
+  min-width: 0;
   border: 1px solid var(--edge);
   background: linear-gradient(180deg, var(--oh-panel) 0%, var(--oh-ink) 100%);
   transition: border-color 0.22s var(--ease), transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
@@ -508,6 +509,7 @@ button {
 .ep-body {
   display: flex;
   flex: 1 1 auto;
+  min-width: 0;
   flex-direction: column;
   gap: 10px;
   padding: clamp(16px, 2vw, 22px);
@@ -540,11 +542,10 @@ button {
 .ep-cast {
   color: var(--oh-faint);
   font-size: var(--t-xs);
-  letter-spacing: 0.08em;
+  line-height: 1.5;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .ep-foot {
@@ -590,15 +591,16 @@ button {
 .cast {
   display: grid;
   gap: 12px;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 520px) { .cast { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 880px) { .cast { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 520px) { .cast { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 880px) { .cast { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .cast-card {
   --accent: var(--oh-silver);
   position: relative;
+  min-width: 0;
   padding: 14px 16px 14px 20px;
   border: 1px solid var(--edge-soft);
   background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 42%), var(--oh-ink);
@@ -663,11 +665,11 @@ button {
 .about {
   display: grid;
   gap: clamp(18px, 3vw, 34px);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 820px) {
-  .about { grid-template-columns: 1.15fr 1fr; align-items: start; }
+  .about { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
 }
 
 .about p {
@@ -783,6 +785,7 @@ body.watch::before { opacity: 0.55; }
 .w-meta {
   flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -856,6 +859,9 @@ body.watch::before { opacity: 0.55; }
   position: absolute;
   left: 0;
   top: 0;
+  /* Until the stage exists these fill the frame; engine.resize() then sets exact px. */
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
   background: #000;
 }
@@ -872,6 +878,22 @@ body.watch::before { opacity: 0.55; }
   z-index: 3;
 }
 
+/* The episode's poster plate, behind the title and end cards. It is the same
+   artwork the gallery card uses, so the two pages agree on what the show looks like. */
+.idle-plate {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+  pointer-events: none;
+}
+
+.frame[data-card='on'] .idle-plate { opacity: 0.45; }
+
 /* --- overlays ------------------------------------------------------- */
 
 .ovl {
@@ -883,7 +905,7 @@ body.watch::before { opacity: 0.55; }
   padding: clamp(16px, 3vw, 34px);
   text-align: center;
   background:
-    radial-gradient(ellipse 90% 80% at 50% 45%, rgba(8, 12, 20, 0.55), rgba(3, 4, 8, 0.92));
+    radial-gradient(ellipse 78% 70% at 50% 45%, rgba(5, 8, 14, 0.80), rgba(3, 4, 8, 0.94));
 }
 
 .ovl[hidden] { display: none; }
@@ -1035,6 +1057,25 @@ body.watch::before { opacity: 0.55; }
   font-size: var(--t-xs);
 }
 
+/* Short frames (a 16:9 stage in a tall phone viewport) get a compressed card
+   rather than content that runs past the edge. */
+.frame[data-size='sm'] .ovl-in { gap: 10px; }
+.frame[data-size='sm'] .ovl h2 { font-size: clamp(20px, 5vw, 26px); }
+.frame[data-size='sm'] .ovl p { font-size: 11px; line-height: 1.5; }
+.frame[data-size='sm'] .play { padding: 12px 26px; font-size: 12px; }
+.frame[data-size='sm'] .hint { display: none; }
+
+.frame[data-size='xs'] .ovl { padding: 10px; }
+.frame[data-size='xs'] .ovl-in { gap: 7px; }
+.frame[data-size='xs'] .ovl h2 { font-size: 19px; letter-spacing: 0.06em; }
+.frame[data-size='xs'] .ovl p { font-size: 10px; }
+.frame[data-size='xs'] .kicker { font-size: 9px; }
+.frame[data-size='xs'] #idle-log,
+.frame[data-size='xs'] .hint { display: none; }
+.frame[data-size='xs'] .play { padding: 10px 22px; font-size: 11px; }
+.frame[data-size='xs'] .btn { padding: 8px 14px; font-size: 11px; }
+.frame[data-size='xs'] .chrome { padding: 22px 8px 7px; }
+
 /* --- chrome: progress + auto-hiding controls ------------------------ */
 
 .chrome {
@@ -1118,7 +1159,33 @@ body.watch::before { opacity: 0.55; }
 
 .w-foot {
   flex: 0 0 auto;
-  padding: 0 var(--gutter) clamp(10px, 2vw, 18px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: clamp(10px, 2vw, 16px) var(--gutter) clamp(12px, 2vw, 20px);
+}
+
+.w-log {
+  max-width: 62ch;
+  color: var(--oh-dim);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.w-log .line { display: none; }
+body[data-frame='xs'] .w-log .line { display: block; }
+
+.w-log b {
+  display: block;
+  margin-top: 4px;
+  color: var(--oh-faint);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
 }
 
 .legend {
@@ -1146,6 +1213,10 @@ body.watch::before { opacity: 0.55; }
   .w-foot { display: none; }
 }
 
+@media (max-height: 700px) {
+  .w-log { display: none; }
+}
+
 /* --- poster mode: /watch.html?ep=epN&poster=1 ------------------------ */
 
 body.poster {
@@ -1162,6 +1233,7 @@ body.poster .skip { display: none !important; }
 body.poster .stage { padding: 0; }
 body.poster .frame { border: 0; }
 body.poster .ovl { background: #000; }
+body.poster .idle-plate { display: none; }
 
 /* ------------------------------------------------------------------ *
  * 13. reduced motion

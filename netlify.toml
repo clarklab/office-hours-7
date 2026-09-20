@@ -1,0 +1,85 @@
+# OFFICE HOURS VII — deploy config.
+#
+# A zero-build static site: the repo root IS the site. No bundler runs, nothing is
+# minified, and there are no redirects — `/watch.html?ep=ep1` must reach watch.html
+# with its query string intact.
+
+[build]
+  publish = "."
+  command = ""
+
+# Netlify's post-processing would otherwise be free to rewrite the hand-written GLSL
+# in the PS1 shader and the ES modules. Leave every byte alone.
+[build.processing]
+  skip_processing = true
+
+[build.processing.html]
+  pretty_urls = false
+
+# ------------------------------------------------------------------ security
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-origin"
+    # Everything is first-party and procedural, so this can be tight. The one inline
+    # script on each page is the import map; its sha256 is pinned below. Keep that hash
+    # in step with the <script type="importmap"> block in index.html and watch.html —
+    # it is the sha256 of exactly {"imports":{"three":"/vendor/three.module.js"}}.
+    # 'unsafe-inline' is kept only for style attributes set from CSSOM-adjacent markup.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-y0joblgLTLFGhbj/xXhGS1SyGmxly/oZpyENyx9LBXI='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+
+# ------------------------------------------------------- immutable artefacts
+#
+# three.js and the brand renders are content-stable and never edited in place.
+
+[[headers]]
+  for = "/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ------------------------------------------------------------ content types
+#
+# Modules must be served as JavaScript or the browser refuses to execute them.
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/vendor/three.module.js"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Content-Type = "text/css; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# The two pages are the only mutable entry points; always revalidate them.
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"

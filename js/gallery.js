@@ -563,7 +563,11 @@ function episodeCard(ep) {
   const shot = new Image();
   shot.className = 'ep-shot';
   shot.alt = `${ep.title} — still frame`;
-  shot.loading = 'lazy';
+  // NOT lazy. This image is deliberately detached until it loads, and a lazy
+  // image only starts fetching once it is in the document and near the
+  // viewport — which it never is, because it is only inserted on load. The two
+  // together deadlock and the real thumbnails silently never appear.
+  shot.loading = 'eager';
   shot.decoding = 'async';
   shot.addEventListener('load', () => {
     thumb.insertBefore(shot, plate.nextSibling);

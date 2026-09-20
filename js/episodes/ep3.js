@@ -44,7 +44,9 @@
 const ACCENT = '#c98a4b';
 
 /** Dialogue hold, tightened from the 750ms default to keep inside 70s. */
-const HOLD = 540;
+const HOLD = 500;
+/** Reveal speed. A hair over the 34 default; still a readable FF7 crawl. */
+const CPS = 37;
 
 /**
  * Floor positions this episode needs that `office.marks` does not name. Every
@@ -273,17 +275,17 @@ async function run(ctx) {
 
   d.cut(single(d, c.marge, 20, 3.0));
   d.face(c.marge, 'bullpenCenter');
-  await d.say(c.marge, 'Line item forty-one.\nSnacks.', { hold: HOLD });
+  await d.say(c.marge, 'Line item forty-one.\nSnacks.', { cps: CPS, hold: HOLD });
 
   // He swivels to ask the room, which is the most social thing he does today.
   d.cut('deskRowB');
   d.face(c.roop, [-3.60, 0, -0.50]);
   d.anim(c.roop, 'shrug');
-  await d.say(c.roop, 'Who filled the water bowl\nby the copier?', { hold: HOLD });
+  await d.say(c.roop, 'Who filled the water bowl\nby the copier?', { cps: CPS, hold: HOLD });
 
   d.cut('windowWall');
   d.anim(c.dez, 'talk');
-  await d.say(c.dez, 'Not me. I am on a call.', { hold: HOLD });
+  await d.say(c.dez, 'Not me. I am on a call.', { cps: CPS, hold: HOLD });
 
   // FLOOR LEVEL. The camera is 28cm off the carpet and a dog walks into it.
   d.cut('floorLevel');
@@ -319,19 +321,19 @@ async function run(ctx) {
   await d.encounter('! TUESDAY APPEARED', { ms: 950 });
 
   cutTo(d, single(d, c.brad, 10));
-  await d.say(c.brad, 'What is that.', { hold: HOLD });
+  await d.say(c.brad, 'What is that.', { cps: CPS, hold: HOLD });
 
   cutTo(d, SHOT.battleLeft, dog);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'That is Tuesday.', { hold: HOLD });
+  await d.say(c.kiki, 'That is Tuesday.', { cps: CPS, hold: HOLD });
 
   cutTo(d, single(d, c.brad, 16, 2.8));
   d.anim(c.brad, 'shrug');
-  await d.say(c.brad, 'Today is Thursday.', { hold: HOLD });
+  await d.say(c.brad, 'Today is Thursday.', { cps: CPS, hold: HOLD });
 
   cutTo(d, single(d, c.kiki, -26, 2.8));
   d.anim(c.kiki, 'point');
-  await d.say(c.kiki, 'Her name is Tuesday.\nI made her a badge.', { hold: HOLD });
+  await d.say(c.kiki, 'Her name is Tuesday.\nI made her a badge.', { cps: CPS, hold: HOLD });
 
   /* ========================================== ACT 3 — THE BATTLE MENU ==== */
 
@@ -346,19 +348,19 @@ async function run(ctx) {
   cutTo(d, onDog(d, dog, -34, 1.95, 0.62), dog);
   d.face(dog, SPOT.brad);
   d.anim(c.brad, 'point');
-  await d.say(c.brad, 'Hey. Hey buddy. Hey.', { hold: HOLD });
+  await d.say(c.brad, 'Hey. Hey buddy. Hey.', { cps: CPS, hold: HOLD });
 
   // The dog's reply. Routed as narration with a speaker and her own voice, so
   // she gets the box without the rig throwing a bark over the top of it.
   cutTo(d, SHOT.dogPov);
   await d.say(null, '......', {
-    speaker: 'TUESDAY', voice: 'tuesday', at: [206, 112], maxWidth: 120, hold: HOLD,
+    speaker: 'TUESDAY', voice: 'tuesday', at: [206, 112], maxWidth: 120, cps: CPS, hold: HOLD,
   });
   await d.damageOn(c.brad, 'MISS');
 
   cutTo(d, SHOT.battleRight, dog);
   d.anim(c.dez, 'talk');
-  await d.say(c.dez, 'Ron. Say hi to Tuesday.', { hold: HOLD });
+  await d.say(c.dez, 'Ron. Say hi to Tuesday.', { cps: CPS, hold: HOLD });
 
   d.sfx('bark');
   d.anim(dog, 'bark');
@@ -374,23 +376,23 @@ async function run(ctx) {
 
   cutTo(d, SHOT.battleLeft, dog);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'She has eaten. I fed her\nat nine.', { hold: HOLD });
+  await d.say(c.kiki, 'She has eaten. I fed her\nat nine.', { cps: CPS, hold: HOLD });
 
   cutTo(d, single(d, c.brad, 12, 2.8));
   d.anim(c.brad, 'panic');
-  await d.say(c.brad, 'You have had her\nsince NINE?', { hold: HOLD });
+  await d.say(c.brad, 'You have had her\nsince NINE?', { cps: CPS, hold: HOLD });
 
   // CEILING SHOT — up past the party at the drop tiles. From down here the
   // org chart is a very tall thing.
   cutTo(d, 'ceiling');
   d.anim(c.kiki, 'point');
   d.anim(c.brad, 'slump');
-  await d.say(c.kiki, 'She is on the org chart.', { hold: HOLD });
+  await d.say(c.kiki, 'She is on the org chart.', { cps: CPS, hold: HOLD });
 
   cutTo(d, single(d, c.roop, -8, 3.2));
   d.anim(c.roop, 'panic');
   d.emote(c.roop, 'sweat');
-  await d.say(c.roop, 'HKKTCH.', { hold: HOLD });
+  await d.say(c.roop, 'HKKTCH.', { cps: CPS, hold: HOLD });
 
   /* ---- ADOPT ---- */
 
@@ -406,11 +408,11 @@ async function run(ctx) {
   d.anim(c.marge, 'point');
   d.anim(c.roop, 'shrug');
   const arithmetic = d.say(c.marge, 'Fully loaded, per head,\nshe is $41.20 a day.', {
-    id: 'marge-cost', keep: true, at: [268, 60], maxWidth: 152, hold: HOLD,
+    id: 'marge-cost', keep: true, at: [268, 60], maxWidth: 152, cps: CPS, hold: HOLD,
   });
   await d.beat(260);
   const denial = d.say(c.roop, 'I am not allergic.', {
-    id: 'roop-denial', keep: true, at: [104, 120], maxWidth: 132, hold: HOLD,
+    id: 'roop-denial', keep: true, at: [104, 120], maxWidth: 132, cps: CPS, hold: HOLD,
   });
   await d.all(arithmetic, denial);
 
@@ -421,7 +423,7 @@ async function run(ctx) {
   cutTo(d, single(d, c.roop, -6, 3.0));
   d.anim(c.roop, 'panic');
   d.emote(c.roop, 'sweat');
-  await d.say(c.roop, 'HKKTCH. Dust.', { hold: HOLD });
+  await d.say(c.roop, 'HKKTCH. Dust.', { cps: CPS, hold: HOLD });
   d.updateHud({ ROOP: { hp: 19 } });
   await d.damageOn(c.roop, 'MISS');
 
@@ -451,11 +453,11 @@ async function run(ctx) {
   await dash(d, dog, SPOT.zoomA, 1300);
   await d.all(
     dash(d, dog, SPOT.zoomB, 1850),
-    d.say(c.kiki, 'Zoomies.', { hold: HOLD }),
+    d.say(c.kiki, 'Zoomies.', { cps: CPS, hold: HOLD }),
   );
   await d.all(
     dash(d, dog, SPOT.zoomC, 1600),
-    d.say(c.marge, 'That is four laps.', { hold: HOLD }),
+    d.say(c.marge, 'That is four laps.', { cps: CPS, hold: HOLD }),
   );
   await dash(d, dog, SPOT.zoomD, 950);
   d.anim(dog, 'shake');
@@ -469,7 +471,7 @@ async function run(ctx) {
 
   cutTo(d, single(d, c.brad, 8, 2.6, { height: 1.30, lookHeight: 1.45 }));
   d.anim(c.brad, 'slump');
-  await d.say(c.brad, 'Sit.', { hold: HOLD });
+  await d.say(c.brad, 'Sit.', { cps: CPS, hold: HOLD });
 
   // Profile, at her eye level. A sitting dog seen side-on is the single most
   // legible shape in this whole show; seen from behind she is a brown box.
@@ -488,8 +490,8 @@ async function run(ctx) {
 
   cutTo(d, single(d, c.brad, 14, 2.7));
   d.anim(c.brad, 'idle');
-  await d.say(c.brad, '......', { hold: HOLD });
-  await d.say(c.brad, 'Nothing in this building\nhas ever listened to me.', { hold: HOLD });
+  await d.say(c.brad, '......', { cps: CPS, hold: HOLD });
+  await d.say(c.brad, 'Nothing in this building\nhas ever listened to me.', { cps: CPS, hold: HOLD });
 
   // THE CHORUS. Five boxes, five ids, all kept, all at once, hand-placed so
   // they tile the frame above the HUD instead of dodging each other.
@@ -501,16 +503,16 @@ async function run(ctx) {
   d.anim(c.brad, 'point');
 
   const chorus = [
-    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 118, hold: 460 }),
+    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 118, cps: CPS, hold: 460 }),
   ];
   await d.beat(150);
-  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 118, hold: 460 }));
+  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 118, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 118, hold: 460 }));
+  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 118, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 118, hold: 460 }));
+  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 118, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118, hold: 460 }));
+  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118, cps: CPS, hold: 460 }));
   await d.all(chorus);
   await d.beat(260);
   d.closeBoxes(null);
@@ -533,11 +535,11 @@ async function run(ctx) {
   await d.beat(520);
 
   d.cut(single(d, c.brad, 30, 2.6));
-  await d.say(c.brad, '......that is my chair.', { hold: HOLD });
+  await d.say(c.brad, '......that is my chair.', { cps: CPS, hold: HOLD });
 
   d.cut(SHOT.throne);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'It is her chair now.', { hold: HOLD });
+  await d.say(c.kiki, 'It is her chair now.', { cps: CPS, hold: HOLD });
 
   // Roster amended. The founder does not make the cut.
   d.hud([
@@ -552,7 +554,7 @@ async function run(ctx) {
   await d.beat(520);
 
   d.anim(c.marge, 'talk');
-  await d.say(c.marge, 'Motion carries.', { hold: HOLD });
+  await d.say(c.marge, 'Motion carries.', { cps: CPS, hold: HOLD });
   d.anim(c.marge, 'idle');
   d.anim(c.kiki, 'idle');
   await d.beat(800);

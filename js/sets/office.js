@@ -132,12 +132,12 @@ export function createOffice() {
   const D = BOUNDS.maxZ - BOUNDS.minZ;
   const CZ = (BOUNDS.minZ + BOUNDS.maxZ) / 2;
 
-  const floor = P.floorTiles({ w: W, d: D, repeat: 0.9, segs: 12 });
+  const floor = P.floorTiles({ w: W, d: D, repeat: 0.9, segs: 16 });
   floor.position.set(0, 0, CZ);
   group.add(floor);
 
   // drop ceiling
-  const ceilGeo = new THREE.PlaneGeometry(W, D, 8, 5);
+  const ceilGeo = new THREE.PlaneGeometry(W, D, 12, 7);
   const cuv = ceilGeo.attributes.uv;
   for (let i = 0; i < cuv.count; i++) cuv.setXY(i, cuv.getX(i) * W * 0.85, cuv.getY(i) * D * 0.85);
   cuv.needsUpdate = true;
@@ -293,7 +293,7 @@ export function createOffice() {
   put(group, P.deskPhone({ color: P.PALETTE.beigeDark }), -0.62, 0.755, -3.28, Math.PI);
 
   const board = P.whiteboard({ w: 1.8, h: 1.1, map: P.burnChartTexture() });
-  put(group, board, -4.55, 0, 1.95, Math.PI / 2 - 0.22);
+  put(group, board, -4.55, 0, 1.95, Math.PI / 2 - 0.9);
   props.whiteboard = board;
 
   const cooler = P.waterCooler();
@@ -309,14 +309,14 @@ export function createOffice() {
   /* ----------------------------------------------------- hallway / back  */
 
   const copy = P.copier();
-  put(group, copy, -4.6, 0, 6.4, Math.PI);
+  put(group, copy, -4.6, 0, 5.95, Math.PI);
   props.copier = copy;
 
-  put(group, P.bankersBoxStack({ count: 4, lids: false }), -0.4, 0, 6.35, -0.2);
+  put(group, P.bankersBoxStack({ count: 4, lids: false }), -0.5, 0, 5.95, -0.2);
   const boxes = P.bankersBoxStack({ count: 3, lids: false });
-  put(group, boxes, 1.0, 0, 6.6, 0.35);
+  put(group, boxes, 0.9, 0, 6.3, 0.35);
   props.boxes = boxes;
-  put(group, P.bankersBoxStack({ count: 2, lids: false }), -6.4, 0, 6.5, 0.6);
+  put(group, P.bankersBoxStack({ count: 2, lids: false }), -6.6, 0, 6.2, 0.6);
 
   // two more chairs nobody sits in
   put(group, P.officeChair({ color: P.PALETTE.fabricWorn }), -2.9, 0, 5.4, 2.4);
@@ -411,7 +411,9 @@ export function createOffice() {
   swayers.push({ o: screen.userData.sheet, a: 0.006, f: 0.42, p: 0.7 });
 
   put(group, P.motivationalPoster({ word: 'RUNWAY', caption: 'every road ends somewhere' }),
-    BOUNDS.maxX - 0.03, 1.65, 5.6, -Math.PI / 2);
+    10.4, 1.62, BOUNDS.maxZ - 0.02, Math.PI);
+  put(group, P.poster('BOOK THE\nROOM', { w: 0.32, h: 0.42, accent: '#3f5d8c', size: 9 }),
+    7.4, 1.62, BOUNDS.maxZ - 0.02, Math.PI);
   put(group, P.pottedPlant({ dead: false, scale: 0.9 }), 6.6, 0, 6.6);
 
   /* ------------------------------------------------------ ceiling panels */
@@ -456,7 +458,7 @@ export function createOffice() {
     return l;
   }
 
-  const lBullpen = addLight(0.2, -1.6, 0xbfd4e8, 2.05, 24, 'bullpen');
+  const lBullpen = addLight(0.2, -0.6, 0xbfd4e8, 2.25, 28, 'bullpen');
   const lReception = addLight(-9.8, -1.4, 0xffc98a, 1.35, 16, 'reception');
   const lBreak = addLight(9.4, -3.2, 0xffc98a, 1.45, 14, 'break');
   const lMeeting = addLight(9.4, 3.6, 0xbfd4e8, 1.7, 15, 'meeting');
@@ -497,14 +499,14 @@ export function createOffice() {
     seatMarge: mark(3.32, -5.15),
     seatRoop: mark(-1.65, -1.10),
     seatEmpty: mark(1.95, -1.10),
-    whiteboard: mark(-3.4, 1.82),
+    whiteboard: mark(-3.50, 1.82),
     waterCooler: mark(4.55, 1.4),
     deadPlant: mark(4.3, -5.9),
 
     // hallway / back
-    hallway: mark(-2.0, 5.5),
-    copier: mark(-4.6, 5.45),
-    boxes: mark(0.3, 5.4),
+    hallway: mark(-2.0, 4.9),
+    copier: mark(-4.6, 4.95),
+    boxes: mark(0.2, 5.1),
 
     // break room
     breakRoom: mark(8.5, -1.3),
@@ -536,25 +538,25 @@ export function createOffice() {
 
   /** @type {Object<string, {pos:number[], look:number[], fov?:number}>} */
   const shots = {
-    establish: shot(-5.2, 2.42, 5.6, 1.0, 1.0, -3.4, 60),
-    bullpenWide: shot(-4.6, 1.75, 3.4, 1.2, 1.05, -3.6),
+    establish: shot(-3.6, 2.42, 6.4, 1.8, 0.95, -3.2, 62),
+    bullpenWide: shot(-3.6, 1.80, 3.9, 1.4, 1.05, -3.6),
     bullpenLow: shot(-1.0, 0.45, 1.6, 0.4, 1.2, -3.4, 62),
     bullpenReverse: shot(1.6, 1.6, -6.0, -1.6, 1.15, -1.6),
-    deskCloseA: shot(-3.3, 1.62, -1.5, -3.3, 1.22, -4.6, 50),
+    deskCloseA: shot(-2.30, 1.52, -1.60, -3.3, 1.2, -4.5, 50),
     deskCloseB: shot(-3.6, 1.45, -0.5, -1.6, 1.15, -1.8, 50),
     floorLevel: shot(1.4, 0.28, 2.6, -1.0, 1.05, -2.8, 62),
     ceiling: shot(-2.4, 0.9, 1.9, -2.5, 2.70, -1.2, 58),
-    whiteboard: shot(-2.05, 1.45, 2.5, -4.5, 1.4, 1.95, 52),
+    whiteboard: shot(-3.06, 1.50, 3.83, -4.55, 1.40, 1.95, 52),
     waterCooler: shot(3.0, 1.5, 0.4, 5.35, 1.15, 1.4, 52),
-    windowWall: shot(0.4, 1.55, -2.2, 0.2, 1.5, -6.9, 56),
+    windowWall: shot(1.8, 1.55, -2.0, 1.2, 1.45, -6.9, 56),
 
     receptionDesk: shot(-8.1, 1.66, -2.3, -11.9, 1.5, -2.42, 52),
     receptionWide: shot(-6.6, 1.85, 1.3, -11.2, 1.1, -2.6, 60),
     logoWall: shot(-9.6, 1.5, -2.4, -12.9, 1.58, -2.4, 50),
 
-    doorway: shot(-3.0, 1.58, -0.15, -10.6, 1.42, -0.62, 54),
-    hallway: shot(1.6, 1.6, 3.0, -4.4, 1.1, 6.1, 60),
-    copier: shot(-3.4, 1.5, 4.2, -4.6, 1.0, 6.2, 54),
+    doorway: shot(-4.0, 1.58, -0.14, -10.6, 1.42, -0.50, 54),
+    hallway: shot(1.8, 1.70, 2.0, -4.2, 1.00, 5.8, 60),
+    copier: shot(-3.3, 1.20, 3.9, -4.6, 0.80, 5.85, 52),
 
     breakWide: shot(6.8, 1.75, -0.9, 10.2, 1.05, -4.6, 60),
     breakTable: shot(9.4, 1.45, -0.7, 9.4, 0.9, -3.3, 52),

@@ -360,8 +360,8 @@ export function createTuesday() {
     earUp.name = 'earUp';
     // the floppy one hangs flat down the side of the skull, which is the whole
     // gag: the dog is permanently half-listening
-    const earFlop = attach(parts.earL, taperedBox(0.05, 0.19, 0.085, { top: 1.0, bottom: 0.55 }, furDark),
-      -0.035, -0.075, 0.0, [0.12, 0, 0.30]);
+    const earFlop = attach(parts.earL, taperedBox(0.055, 0.24, 0.09, { top: 1.0, bottom: 0.5 }, furDark),
+      -0.048, -0.105, 0.0, [0.12, 0, 0.36]);
     earFlop.name = 'earFloppy';
     attach(parts.earL, taperedBox(0.055, 0.07, 0.075, { top: 0.8 }, furDark), -0.012, 0.015, 0, [0, 0, 0.5]);
 

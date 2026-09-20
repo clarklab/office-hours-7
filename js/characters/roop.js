@@ -150,8 +150,8 @@ export function createRoop() {
 
     /* ---- prop: the CRT, carried against the chest ---- */
     const prop = crtMonitor();
-    prop.position.set(-0.21, -0.01, 0.26);
-    prop.rotation.set(0.10, 0.42, 0.06);
+    prop.position.set(-0.30, -0.02, 0.24);
+    prop.rotation.set(0.10, 0.62, 0.06);
     parts.chest.add(prop);
 
     return {

@@ -92,19 +92,23 @@ export function createKiki() {
 
     /* ---- the hair mass: five chunks, no curves anywhere ---- */
     const hairMat = { color: HAIR };
-    attach(parts.head, taperedBox(0.50, 0.30, 0.46, { top: 0.72, bottom: 0.94 }, hairMat), 0, 0.31, -0.02);
-    attach(parts.head, taperedBox(0.40, 0.15, 0.14, { top: 0.86, shearZ: 0.025 }, hairMat), 0, 0.255, 0.125);
-    attach(parts.head, taperedBox(0.17, 0.32, 0.38, { top: 0.88, bottom: 0.78 }, hairMat), -0.225, 0.16, -0.02);
-    attach(parts.head, taperedBox(0.17, 0.32, 0.38, { top: 0.88, bottom: 0.78 }, hairMat), 0.225, 0.16, -0.02);
-    attach(parts.head, taperedBox(0.42, 0.32, 0.18, { top: 0.9, bottom: 0.85 }, hairMat), 0, 0.14, -0.195);
+    // six chunks arranged so the OUTLINE is an octagon: narrow crown, wide
+    // middle band, narrowing again at the jaw. Faceted, never smooth.
+    attach(parts.head, taperedBox(0.52, 0.20, 0.48, { top: 0.94, bottom: 0.96 }, hairMat), 0, 0.30, -0.02);
+    attach(parts.head, taperedBox(0.44, 0.15, 0.42, { top: 0.66, bottom: 1.0 }, hairMat), 0, 0.455, -0.02);
+    attach(parts.head, taperedBox(0.46, 0.17, 0.42, { top: 1.0, bottom: 0.66 }, hairMat), 0, 0.125, -0.02);
+    attach(parts.head, taperedBox(0.40, 0.15, 0.14, { top: 0.86, shearZ: 0.025 }, hairMat), 0, 0.245, 0.135);
+    attach(parts.head, taperedBox(0.44, 0.30, 0.18, { top: 0.86, bottom: 0.80 }, hairMat), 0, 0.17, -0.20);
+    attach(parts.head, taperedBox(0.17, 0.22, 0.34, { top: 0.72, bottom: 0.72 }, hairMat), -0.215, 0.10, -0.02);
+    attach(parts.head, taperedBox(0.17, 0.22, 0.34, { top: 0.72, bottom: 0.72 }, hairMat), 0.215, 0.10, -0.02);
 
     /* ---- headset: band, earpiece, boom, mic ---- */
     const gear = { color: 0x1f2126 };
-    attach(parts.head, boxMesh(0.50, 0.026, 0.042, gear), 0, 0.478, 0.0);
-    attach(parts.head, boxMesh(0.028, 0.19, 0.042, gear), -0.246, 0.385, 0.0);
-    attach(parts.head, boxMesh(0.028, 0.19, 0.042, gear), 0.246, 0.385, 0.0);
-    attach(parts.head, boxMesh(0.055, 0.085, 0.07, { color: 0x34363d }), -0.258, 0.285, 0.01);
-    attach(parts.head, boxMesh(0.055, 0.085, 0.07, { color: 0x34363d }), 0.258, 0.285, 0.01);
+    attach(parts.head, boxMesh(0.46, 0.026, 0.042, gear), 0, 0.45, 0.02);
+    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), -0.232, 0.35, 0.02);
+    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), 0.232, 0.35, 0.02);
+    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), -0.252, 0.25, 0.02);
+    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), 0.252, 0.25, 0.02);
     // the boom sweeps from the left earpiece across to the mouth — it is the
     // one bit of Kiki that reads in a straight-on silhouette
     const boom = attach(parts.head, taperedBox(0.018, 0.36, 0.018, { top: 0.75 }, gear),

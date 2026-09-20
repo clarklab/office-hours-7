@@ -477,7 +477,7 @@ function drawPlate(c, ep) {
   }
 
   /* --- scanlines, baked so they survive any scale --- */
-  c.globalAlpha = 0.20;
+  c.globalAlpha = 0.12;
   c.fillStyle = '#000';
   for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
   c.globalAlpha = 1;

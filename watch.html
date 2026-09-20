@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Watch — OFFICE HOURS VII</title>
+<meta name="description" content="An episode of OFFICE HOURS VII, rendered live in your browser at 384x216.">
+<meta name="theme-color" content="#05070c">
+<meta name="color-scheme" content="dark">
+
+<meta property="og:type" content="video.episode">
+<meta property="og:site_name" content="OFFICE HOURS VII">
+<meta property="og:title" content="Watch — OFFICE HOURS VII">
+<meta property="og:description" content="An episode of OFFICE HOURS VII, rendered live in your browser at 384x216.">
+<meta property="og:image" content="/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The OFFICE HOURS VII logo: a crumpled sheet of paper the size of a meteor falling towards a very small business park.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="/assets/og.png">
+
+<link rel="icon" href="/assets/mark.png" type="image/png">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="stylesheet" href="/css/site.css">
+
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+</head>
+
+<body class="watch">
+<a class="skip" href="#frame">Skip to the player</a>
+
+<header class="w-head">
+  <div class="wrap w-head-in">
+    <!-- drawMark() alone — the wordmark is never set as HTML text. -->
+    <a class="marklink" id="marklink" href="/" aria-label="Office Hours 7 — back to all episodes"></a>
+    <div class="w-meta">
+      <span class="w-ep" id="w-ep">Episode</span>
+      <span class="w-title" id="w-title">&mdash;</span>
+      <span class="w-run" id="w-run"></span>
+    </div>
+    <a class="w-back" href="/">All episodes</a>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <div class="frame" id="frame" tabindex="-1">
+    <canvas id="scene" width="384" height="216" role="img"
+            aria-label="The episode plays here as a live 3D scene."></canvas>
+
+    <!-- The FF7 dialogue layer mounts here: 384x216, CSS-scaled onto the canvas. -->
+    <div class="ui-host" id="ui" aria-hidden="true"></div>
+
+    <!-- The episode's procedural poster, behind the title and end cards only. -->
+    <canvas class="idle-plate" id="idle-plate" aria-hidden="true"></canvas>
+
+    <div class="ovl" id="ovl-idle">
+      <div class="ovl-in">
+        <p class="kicker" id="idle-kicker">Office Hours 7</p>
+        <h2 class="chroma" id="idle-title">&mdash;</h2>
+        <p id="idle-log"></p>
+        <button class="play" id="play" type="button" data-oh-play>
+          <span class="tri" aria-hidden="true">&#9654;</span>
+          Play
+        </button>
+        <p class="hint">Sound is synthesised on play &mdash; your browser needs the click.</p>
+      </div>
+    </div>
+
+    <div class="ovl" id="ovl-load" hidden>
+      <div class="ovl-in">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="loading-note" id="load-note">Loading</p>
+      </div>
+    </div>
+
+    <div class="ovl" id="ovl-error" hidden>
+      <div class="ovl-in">
+        <div class="errbox">
+          <b id="err-title">Not available</b>
+          <span id="err-body"></span>
+        </div>
+        <div class="btnrow">
+          <a class="btn primary" href="/">All episodes</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="ovl" id="ovl-end" hidden>
+      <div class="ovl-in">
+        <p class="kicker" id="end-kicker">End of episode</p>
+        <h2 class="chroma" id="end-title">&mdash;</h2>
+        <div class="btnrow">
+          <a class="btn primary" id="end-next" href="/">Next episode</a>
+          <button class="btn" id="end-replay" type="button">Replay</button>
+          <a class="btn" href="/">All episodes</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="chrome" id="chrome" hidden>
+      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      <div class="ctl">
+        <button id="c-replay" type="button">Replay</button>
+        <button id="c-mute" type="button" aria-pressed="false">Mute</button>
+        <span class="time" id="c-time">0:00</span>
+        <span class="spacer"></span>
+        <a href="/">Back</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="w-foot">
+  <p class="w-log" id="w-log"></p>
+  <ul class="legend">
+    <li><kbd>Space</kbd>Play / advance</li>
+    <li><kbd>M</kbd>Mute</li>
+    <li><kbd>R</kbd>Replay</li>
+    <li><kbd>Esc</kbd>Back</li>
+  </ul>
+</footer>
+
+<p class="sr-only" id="status" role="status" aria-live="polite"></p>
+
+<script type="module" src="/js/player.js"></script>
+</body>
+</html>

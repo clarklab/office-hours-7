@@ -1,0 +1,48 @@
+/**
+ * OFFICE HOURS VII — brand tokens.
+ * The logo is always on black or near-black, never recoloured.
+ * The logo serif is for the logo only; UI and body type stay monospace.
+ */
+:root {
+  /* ground */
+  --oh-black: #05070c;
+  --oh-ink: #080c14;
+  --oh-panel: #0b1018;
+  --oh-panel-2: #111827;
+  --oh-hair: #1b2432;
+
+  /* metal — the logo gradient, reused for rules and emphasis */
+  --oh-silver-hi: #ffffff;
+  --oh-silver: #dfe7f0;
+  --oh-silver-mid: #b9c4d2;
+  --oh-silver-lo: #6c7b8d;
+  --oh-dim: #8a97a8;
+  --oh-faint: #55637a;
+
+  /* the FF7 dialogue box, so the site and the game layer agree */
+  --oh-box-top: #2b4fa8;
+  --oh-box-bottom: #060b2a;
+  --oh-box-edge: #dfe6ff;
+
+  /* episode accents */
+  --oh-ep1: #39c7b5;
+  --oh-ep2: #e8a33d;
+  --oh-ep3: #c98a4b;
+
+  /* cast accents */
+  --oh-brad: #39c7b5;
+  --oh-dez: #e0457b;
+  --oh-kiki: #7ee04a;
+  --oh-roop: #8f7ae0;
+  --oh-marge: #e8a33d;
+  --oh-tuesday: #c98a4b;
+
+  /* battle HUD */
+  --oh-limit: #ff5fa8;
+  --oh-time: #ffb877;
+
+  /* type */
+  --oh-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas,
+    'DejaVu Sans Mono', 'Courier New', monospace;
+  --oh-serif: 'Times New Roman', 'Nimbus Roman', Times, 'Liberation Serif', Georgia, serif;
+}

@@ -129,24 +129,24 @@ void main() {
   vec3 lightSum = uAmbient + mix( uHemiGround, uHemiSky, wn.y * 0.5 + 0.5 );
 
   for ( int i = 0; i < ${MAX_LIGHTS}; i++ ) {
-    float active = step( float( i ) + 0.5, uLightCount );
+    float lightOn = step( float( i ) + 0.5, uLightCount );
     vec3 lp = ( viewMatrix * vec4( uLightPos[ i ], 1.0 ) ).xyz;
-    vec3 d = lp - mvPosition.xyz;
-    float dist = max( length( d ), 0.0001 );
-    vec3 ld = d / dist;
-    float range = uLightRange[ i ];
+    vec3 toL = lp - mvPosition.xyz;
+    float dist = max( length( toL ), 0.0001 );
+    vec3 ld = toL / dist;
+    float lrange = uLightRange[ i ];
     float atten = 1.0;
-    if ( range > 0.0 ) {
-      atten = clamp( 1.0 - dist / range, 0.0, 1.0 );
+    if ( lrange > 0.0 ) {
+      atten = clamp( 1.0 - dist / lrange, 0.0, 1.0 );
       atten *= atten;
-    } else if ( range > -0.5 ) {
+    } else if ( lrange > -0.5 ) {
       atten = 1.0 / ( 1.0 + 0.08 * dist * dist );
     }
     // Slightly wrapped lambert: PS1 shading rarely went fully black on a
     // back face, and a hard terminator on a 12-poly torso reads as a bug.
     float nl = dot( vn, ld );
     float lambert = max( nl, 0.0 ) * 0.86 + max( nl * 0.5 + 0.5, 0.0 ) * 0.14;
-    lightSum += active * uLightColor[ i ] * ( lambert * atten );
+    lightSum += lightOn * uLightColor[ i ] * ( lambert * atten );
   }
 
   vec3 shade = mix( lightSum, vec3( 1.0 ), uUnlit ) + uEmissive;
@@ -554,7 +554,7 @@ void main() {
  * @property {(scene: THREE.Scene, camera: THREE.Camera) => void} render
  * @property {(w: number, h: number) => void} setDisplaySize
  * @property {() => void} dispose
- * @property {THREE.WebGLRenderTarget} target the fixed 384x216 scene buffer
+ * @property {THREE.WebGLRenderTarget} target the 384x216 buffer holding the last composed frame
  */
 
 /**
@@ -573,24 +573,37 @@ export function createPS1Pipeline(renderer) {
   renderer.autoClear = true;
   renderer.setPixelRatio(1);
 
-  const target = new THREE.WebGLRenderTarget(VIRTUAL_W, VIRTUAL_H, {
-    minFilter: THREE.NearestFilter,
-    magFilter: THREE.NearestFilter,
-    format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
-    depthBuffer: true,
-    stencilBuffer: false,
-  });
-  target.texture.generateMipmaps = false;
-  target.texture.wrapS = THREE.ClampToEdgeWrapping;
-  target.texture.wrapT = THREE.ClampToEdgeWrapping;
-  target.texture.anisotropy = 1;
+  /**
+   * Two identical 384x216 buffers, used alternately. A single buffer would be
+   * bound as the post pass's source while the next frame's scene render writes
+   * into it, which WebGL rejects as a framebuffer feedback loop and silently
+   * drops the draw. Ping-ponging costs 332KB and makes the state unambiguous.
+   * @returns {THREE.WebGLRenderTarget}
+   */
+  function makeTarget() {
+    const rt = new THREE.WebGLRenderTarget(VIRTUAL_W, VIRTUAL_H, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+    rt.texture.generateMipmaps = false;
+    rt.texture.wrapS = THREE.ClampToEdgeWrapping;
+    rt.texture.wrapT = THREE.ClampToEdgeWrapping;
+    rt.texture.anisotropy = 1;
+    return rt;
+  }
+
+  const targets = [makeTarget(), makeTarget()];
+  let writeIndex = 0;
 
   const postMat = new THREE.ShaderMaterial({
     vertexShader: POST_VERT,
     fragmentShader: POST_FRAG,
     uniforms: {
-      tDiffuse: { value: target.texture },
+      tDiffuse: { value: targets[0].texture },
       uRes: { value: new THREE.Vector2(VIRTUAL_W, VIRTUAL_H) },
       uSmear: { value: 0.14 },
       uLift: { value: 0.022 },
@@ -612,7 +625,8 @@ export function createPS1Pipeline(renderer) {
   let disposed = false;
 
   return {
-    target,
+    /** The 384x216 buffer the last frame was composed in. */
+    get target() { return targets[writeIndex ^ 1]; },
 
     /**
      * Renders `scene` through the PS1 chain into the renderer's canvas.
@@ -621,10 +635,15 @@ export function createPS1Pipeline(renderer) {
      */
     render(scene, camera) {
       if (disposed) return;
-      renderer.setRenderTarget(target);
+      const rt = targets[writeIndex];
+      writeIndex ^= 1;
+
+      renderer.setRenderTarget(rt);
       renderer.clear(true, true, true);
       renderer.render(scene, camera);
+
       renderer.setRenderTarget(null);
+      postMat.uniforms.tDiffuse.value = rt.texture;
       renderer.clear(true, true, true);
       renderer.render(postScene, postCam);
     },
@@ -645,7 +664,8 @@ export function createPS1Pipeline(renderer) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      target.dispose();
+      targets[0].dispose();
+      targets[1].dispose();
       quadGeo.dispose();
       postMat.dispose();
       postScene.remove(quad);

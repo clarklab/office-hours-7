@@ -340,13 +340,16 @@ function blipAt(p, ch, t, dest) {
       o.frequency.exponentialRampToValueAtTime(f * 0.87, t + d);
       const bp = filt('bandpass', f * 2.0, 7);
       bp.frequency.setValueAtTime(f * 2.0, t);
-      bp.frequency.exponentialRampToValueAtTime(f * 8.5, t + d * 0.42);
+      bp.frequency.exponentialRampToValueAtTime(f * 7.5, t + d * 0.42);
       bp.frequency.exponentialRampToValueAtTime(f * 2.1, t + d);
       const wah = ctx.createGain();
-      wah.gain.value = 1;
+      wah.gain.value = 0.85;
+      // A trombone has a strong fundamental; without this body path the
+      // bandpass alone reads as a thin mid-range pip rather than a low brass
+      // instrument, and he stops being distinguishable from kiki.
       const body = ctx.createGain();
-      body.gain.value = 0.3;
-      const lp = filt('lowpass', 1400, 0.7);
+      body.gain.value = 0.62;
+      const lp = filt('lowpass', f * 3.4, 0.9);
       o.connect(bp); bp.connect(wah); wah.connect(g);
       o.connect(lp); lp.connect(body); body.connect(g);
       env(g.gain, t, p.gain, 0.022, d * 0.4, d * 0.55);

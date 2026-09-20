@@ -32,7 +32,8 @@
  *    the chair, the party deferring to it, HP ???, GOOD 10/10, fade
  *  ---------------------------------------------------------------------------
  *  56 timed beats / 32 camera set-ups / longest hold = the 8s zoomies shot.
- *  MEASURED 58.5s by `node tools/check.mjs --ep=ep3` (PASS, inside 55-70s).
+ *  MEASURED by `node tools/check.mjs --ep=ep3`. Per-line cps/hold are RELATIVE
+ *  comic intent; dialogue.js gives each line a readable floor for its length.
  *  Note the wall clock stretches on a machine with no GPU: the engine clamps
  *  dt at 1/20s, so below 20fps every Director wait runs long. 58.5s was
  *  measured at ~30fps; the dialogue clock is real time either way.

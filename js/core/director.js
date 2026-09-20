@@ -1159,10 +1159,17 @@ export function createDirector(stage, ui, options = {}) {
       if (typeof a.lookAt === 'function' && camera) safe(() => a.lookAt(camera));
     }
 
-    const cps = Math.max(4, num(opts.cps, 34));
-    const hold = num(opts.hold, 750);
+    // Mirrors dialogue.js: typing is per-character and the hold scales with the
+    // length of the line. This is only the watchdog's estimate of how long the
+    // box should need — the UI owns the real timing — but it has to track the
+    // same curve, or the guard cuts a long line off before it has been read.
+    const cps = Math.max(4, num(opts.cps, 24));
+    const hold = num(opts.hold, Math.min(4600, 1000 + line.length * 38));
     const estimate = (line.length / cps) * 1000 + hold;
-    const budget = opts.auto === false ? 0 : estimate * 2 + 4000;
+    // The viewer's speed control reaches down to 0.6x, which stretches a line to
+    // ~1.7x its authored duration, so the budget has to clear that before it is
+    // entitled to call a stall.
+    const budget = opts.auto === false ? 0 : estimate * 3 + 6000;
 
     try {
       const p = callUI('say', opts);

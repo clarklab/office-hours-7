@@ -119,10 +119,20 @@ function fastForward() {
  * @param {number} k
  * @returns {import('/js/core/engine.js').Stage}
  */
-function scaleStage(stage, k) {
-  if (k === 1) return stage;
+function scaleStage(stage, getK) {
   const view = Object.create(stage);
-  view.onUpdate = (fn) => stage.onUpdate((dt, t) => fn(dt * k, t * k));
+  view.onUpdate = (fn) => {
+    // Stage time is accumulated per subscriber rather than scaling the stage's
+    // own clock, because the rate can change mid-episode: multiplying the
+    // running total by the new rate would make `t` jump backwards or forwards
+    // the moment somebody touches the speed control.
+    let st = 0;
+    return stage.onUpdate((dt, _t) => {
+      const sdt = dt * getK();
+      st += sdt;
+      fn(sdt, st);
+    });
+  };
   return view;
 }
 
@@ -134,16 +144,16 @@ function scaleStage(stage, k) {
  * @param {number} k
  * @returns {Object}
  */
-function scaleUi(ui, k) {
-  if (k === 1 || !ui) return ui;
+function scaleUi(ui, getK) {
+  if (!ui) return ui;
   /** @param {*} v @param {number} fallback */
-  const ms = (v, fallback) => Math.max(1, Math.round((Number.isFinite(v) ? v : fallback) / k));
+  const ms = (v, fallback) => Math.max(1, Math.round((Number.isFinite(v) ? v : fallback) / getK()));
   const view = Object.create(ui);
 
-  view.say = (o = {}) => ui.say(Object.assign({}, o, {
-    cps: (Number.isFinite(o.cps) ? o.cps : 34) * k,
-    hold: ms(o.hold, 750),
-  }));
+  // `say` forwards the rate rather than rewriting cps/hold itself: dialogue.js
+  // derives the hold from the line's length, and a fixed value substituted here
+  // would flatten every line back to one duration.
+  view.say = (o = {}) => ui.say(Object.assign({}, o, { speed: getK() }));
   view.title = (o = {}) => ui.title(Object.assign({}, o, { ms: ms(o.ms, 2200) }));
   view.nameCard = (o = {}) => ui.nameCard(Object.assign({}, o, { ms: ms(o.ms, 2000) }));
   view.toast = (text, t) => ui.toast(text, ms(t, 1600));
@@ -270,6 +280,15 @@ export function initPlayer() {
   /** Guards async continuations against a teardown that happened meanwhile. */
   let token = 0;
   let speed = 1;
+  /**
+   * User-chosen reading rate, live. Combined with the harness speed-up below.
+   * Seeded from storage at wiring time rather than here — `SPEEDS` and
+   * `loadSpeed()` are declared further down this same scope, so reading them
+   * during this initialiser hits the temporal dead zone and throws.
+   */
+  let userSpeed = 1;
+  /** The rate everything scales by, read live so the control takes effect mid-line. */
+  const rate = () => speed * userSpeed;
   let hideTimer = 0;
   let progressRaf = 0;
   let elapsedMs = 0;
@@ -403,7 +422,7 @@ export function initPlayer() {
       progressRaf = requestAnimationFrame(tick);
       const dt = Math.min(250, now - last);
       last = now;
-      if (!finished) elapsedMs += dt * speed;
+      if (!finished) elapsedMs += dt * rate();
       const u = finished ? 1 : Math.min(0.985, elapsedMs / total);
       if (barFill) barFill.style.width = `${(u * 100).toFixed(2)}%`;
       if (timeEl) timeEl.textContent = `${clock((u * total) / 1000)} / ${clock(total / 1000)}`;
@@ -474,7 +493,7 @@ export function initPlayer() {
     layout();
     stage.start();
 
-    const view = scaleStage(stage, speed);
+    const view = scaleStage(stage, rate);
 
     note('Building the office');
     /** @type {Object|null} */
@@ -545,7 +564,7 @@ export function initPlayer() {
     const dlg = await import('/js/core/dialogue.js');
     if (mine !== token) return null;
     ui = dlg.createDialogue(uiHost);
-    const uiView = scaleUi(ui, speed);
+    const uiView = scaleUi(ui, rate);
 
     const dir = await import('/js/core/director.js');
     if (mine !== token) return null;
@@ -686,6 +705,69 @@ export function initPlayer() {
     play();
   }
 
+  /* --------------------------------------------------------------- speed  */
+
+  /**
+   * Reading rates, slowest first. 1 is the authored pace; the faster steps are
+   * for people who read quicker than the boxes type, the slower ones for anyone
+   * who would rather not be hurried.
+   */
+  const SPEEDS = [0.6, 0.8, 1, 1.25, 1.5, 2];
+  const SPEED_KEY = 'oh7:speed';
+
+  /**
+   * The saved rate, or 1. Storage can throw outright in a private window, and a
+   * value written by a future build might not be on the list any more, so this
+   * falls back rather than trusting what it reads.
+   *
+   * @returns {number}
+   */
+  function loadSpeed() {
+    const raw = attempt(() => localStorage.getItem(SPEED_KEY));
+    const n = Number(raw);
+    return SPEEDS.includes(n) ? n : 1;
+  }
+
+  /** @param {number} v */
+  function storeSpeed(v) {
+    attempt(() => localStorage.setItem(SPEED_KEY, String(v)));
+  }
+
+  /**
+   * Steps the rate `dir` places along SPEEDS and applies it. Nothing needs
+   * restarting: `rate()` is read live by the stage, the dialogue layer and the
+   * progress clock, so a change lands on the line currently being typed.
+   *
+   * @param {number} dir -1 slower, +1 faster
+   */
+  function nudgeSpeed(dir) {
+    const i = SPEEDS.indexOf(userSpeed);
+    const next = SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, (i < 0 ? SPEEDS.indexOf(1) : i) + dir))];
+    if (next === userSpeed) return;
+    userSpeed = next;
+    storeSpeed(next);
+    syncSpeed();
+    setStatus(`Speed ${fmtSpeed(next)}.`);
+  }
+
+  /** @param {number} v @returns {string} */
+  function fmtSpeed(v) {
+    return `${String(v).replace(/\.0+$/, '')}\u00d7`;
+  }
+
+  /** Reflects the current rate into the control: readout, disabled ends, a11y. */
+  function syncSpeed() {
+    const out = $('c-speed');
+    if (out) out.textContent = fmtSpeed(userSpeed);
+    const i = SPEEDS.indexOf(userSpeed);
+    const slower = /** @type {HTMLButtonElement|null} */ ($('c-slower'));
+    const faster = /** @type {HTMLButtonElement|null} */ ($('c-faster'));
+    if (slower) slower.disabled = i <= 0;
+    if (faster) faster.disabled = i >= SPEEDS.length - 1;
+    const group = $('speedbar');
+    if (group) group.setAttribute('aria-valuetext', fmtSpeed(userSpeed));
+  }
+
   /* ---------------------------------------------------------------- mute  */
 
   function syncMuteButton() {
@@ -823,7 +905,11 @@ export function initPlayer() {
   $('end-replay')?.addEventListener('click', () => { replay(); });
   $('c-replay')?.addEventListener('click', () => { replay(); });
   $('c-mute')?.addEventListener('click', () => { toggleMute(); });
+  $('c-slower')?.addEventListener('click', () => { nudgeSpeed(-1); });
+  $('c-faster')?.addEventListener('click', () => { nudgeSpeed(1); });
   syncMuteButton();
+  userSpeed = loadSpeed();
+  syncSpeed();
 
   for (const evt of ['mousemove', 'pointerdown', 'touchstart']) {
     frame?.addEventListener(evt, showChrome, { passive: true });
@@ -846,6 +932,12 @@ export function initPlayer() {
     } else if (e.key === 'm' || e.key === 'M') {
       e.preventDefault();
       toggleMute();
+    } else if (e.key === '[' || e.key === ',' || e.key === '-') {
+      e.preventDefault();
+      nudgeSpeed(-1);
+    } else if (e.key === ']' || e.key === '.' || e.key === '+' || e.key === '=') {
+      e.preventDefault();
+      nudgeSpeed(1);
     } else if (e.key === 'r' || e.key === 'R') {
       if (state === S.PLAYING || state === S.ENDED) { e.preventDefault(); replay(); }
     } else if (e.key === 'Escape') {

@@ -34,6 +34,29 @@ const GH = 9;
 const CAP = 7;
 /** Horizontal advance per character (5px of ink + 2px of tracking). */
 const ADV = 7;
+/**
+ * Reading pace.
+ *
+ * Typing is already proportional to length — `SAY_CPS` characters per second —
+ * but the pause *after* the last character used to be a flat 750ms, so a
+ * three-word line and a full two-row sentence were given exactly the same time
+ * to be read. Short lines sat there becalmed while long ones vanished before
+ * you reached the end of them, which is the wrong way round.
+ *
+ * The hold is proportional too now: a base beat for the eye to land on the box,
+ * plus time per character, capped so one runaway line cannot stall a scene. A
+ * `hold` passed explicitly by an episode still wins, so a deliberate pause can
+ * be written by hand where the comedy needs one.
+ */
+const SAY_CPS = 22;
+const HOLD_BASE_MS = 1200;
+const HOLD_PER_CHAR_MS = 42;
+const HOLD_MAX_MS = 5200;
+/** Reading rate the on-screen minimum is derived from, characters per second. */
+const READ_CPS = 14;
+/** Every box gets at least this long on screen, however short the line. */
+const READ_FLOOR_MS = 1300;
+
 /** Baseline-to-baseline distance inside a box. */
 const LINE = 11;
 
@@ -50,6 +73,36 @@ const COL_DARK = '#050916';
 const COL_TEXT = '#ffffff';
 const COL_HEAD = '#9db0dd';
 const COL_SHADOW = '#000000';
+
+/**
+ * Milliseconds to hold a finished box of `len` characters before it closes.
+ *
+ * @param {number} len total characters in the box
+ * @returns {number}
+ */
+function holdFor(len) {
+  const n = Number.isFinite(len) ? Math.max(0, len) : 0;
+  return Math.min(HOLD_MAX_MS, HOLD_BASE_MS + n * HOLD_PER_CHAR_MS);
+}
+
+/**
+ * The least time a box of `len` characters may be on screen, start to finish.
+ *
+ * Episodes author `cps` and `hold` per line as comic intent — this beat is
+ * snappier than that one — but those numbers were originally chosen to fit a
+ * 55-70s budget, which made the fast ones genuinely unreadable: a line typed at
+ * 46 cps and held for 330ms is gone in well under a second. Rather than rewrite
+ * a hundred hand-tuned beats and lose their relative shape, every line is given
+ * a floor proportional to its length. Authored timing still wins wherever it is
+ * already slower than the floor, so deliberate long pauses survive untouched.
+ *
+ * @param {number} len
+ * @returns {number} ms
+ */
+function readableMs(len) {
+  const n = Number.isFinite(len) ? Math.max(0, len) : 0;
+  return READ_FLOOR_MS + (n / READ_CPS) * 1000;
+}
 const COL_LIMIT = '#ff5fa8';
 const COL_TIME = '#ffb877';
 const COL_AMBER = '#ffd24a';
@@ -554,8 +607,9 @@ function pinLayer(el, z) {
  * @property {string} [voice='narrator']
  * @property {string} [color]     accepted for API compatibility and IGNORED:
  *   per §10.1 the speaker's name is plain white, with no coloured plate
- * @property {number} [cps=34]
- * @property {number} [hold=750]
+ * @property {number} [cps=24]
+ * @property {number} [hold]     ms after the last character; default scales with length
+ * @property {number} [speed=1]  playback rate; scales typing and hold together
  * @property {'bottom'|'top'} [pos='bottom']
  * @property {boolean} [auto=true]
  * @property {boolean} [keep=false] leave the box up when the next say() runs
@@ -963,8 +1017,19 @@ export function createDialogue(host) {
     };
     boxes.set(id, box);
 
-    const cps = Math.max(1, o.cps === undefined ? 34 : o.cps);
-    const hold = o.hold === undefined ? 750 : o.hold;
+    // One knob for playback speed. It has to be applied *here* rather than by
+    // the caller rewriting `cps`/`hold`, because a caller that substitutes a
+    // fixed `hold` to scale it would throw away the length-proportional default
+    // above and put every line back on the same flat timer.
+    const k = Math.max(0.05, Number.isFinite(o.speed) ? o.speed : 1);
+    const cps = Math.max(1, o.cps === undefined ? SAY_CPS : o.cps) * k;
+    // Typing cadence stays as authored — it is part of the voice. What is
+    // guaranteed is the total: whatever the line spends being typed, the hold
+    // makes up the difference to `readableMs`, and an authored hold longer than
+    // that is kept as-is.
+    const typeMs = (box.total / cps) * 1000;
+    const authoredHold = (o.hold === undefined ? holdFor(box.total) : o.hold) / k;
+    const hold = Math.max(authoredHold, readableMs(box.total) / k - typeMs);
     const auto = o.auto === undefined ? true : !!o.auto;
     const speaker = makeSpeaker(o.voice || 'narrator');
 

@@ -1221,6 +1221,83 @@ body[data-frame='xs'] .w-log .line { display: block; }
   .w-log { display: none; }
 }
 
+/* --- reading speed control ------------------------------------------- */
+
+.speedbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px var(--gutter) 0;
+}
+
+.speedbar-label,
+.speedbar-note {
+  color: var(--oh-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+}
+
+/* The explanatory half of the label is the first thing to go when the row runs
+   out of room; the buttons and the readout never wrap away. */
+.speedbar-note {
+  flex: 0 1 auto;
+  margin-left: 4px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.72;
+}
+
+.speedbtn {
+  min-width: 30px;
+  padding: 5px 10px;
+  border: 1px solid rgba(223, 230, 255, 0.20);
+  background: rgba(5, 7, 12, 0.72);
+  color: var(--oh-dim);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.speedbtn:hover:not(:disabled),
+.speedbtn:focus-visible:not(:disabled) {
+  border-color: var(--oh-silver);
+  color: var(--oh-silver-hi);
+}
+
+.speedbtn:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+.speedval {
+  min-width: 44px;
+  color: var(--oh-silver-hi);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--track-mid);
+  text-align: center;
+}
+
+/* The footer is decoration and goes on a short screen; the speed control is a
+   control, so it stays — only its prose drops away. */
+@media (max-height: 560px) {
+  .speedbar { padding-top: 6px; }
+  .speedbar-note { display: none; }
+}
+
+@media (max-width: 560px) {
+  .speedbar-note { display: none; }
+}
+
 /* --- poster mode: /watch.html?ep=epN&poster=1 ------------------------ */
 
 body.poster {
@@ -1229,6 +1306,7 @@ body.poster {
 }
 
 body.poster::before { display: none; }
+body.poster .speedbar,
 body.poster .w-head,
 body.poster .w-foot,
 body.poster .chrome,

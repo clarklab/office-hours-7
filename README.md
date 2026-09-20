@@ -2,7 +2,7 @@
 
 A PS1-era 3D comedy-shorts show about a startup with eleven days of runway.
 
-Three ~60-second episodes, each a **live Three.js scene** rather than a video: press play and a
+Three short episodes (~2 minutes each), each a **live Three.js scene** rather than a video: press play and a
 directed cutscene runs in the browser — camera cuts, procedural character animation, Final
 Fantasy VII-style dialogue boxes, and gibberish voice synthesis.
 

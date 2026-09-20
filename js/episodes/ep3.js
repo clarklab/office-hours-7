@@ -8,29 +8,34 @@
  * The humans are ridiculous. The dog is not. That is the entire joke.
  *
  * ---------------------------------------------------------------------------
- * BEAT SHEET / RUNNING ESTIMATE
+ * BEAT SHEET / MEASURED RUNTIME
  * ---------------------------------------------------------------------------
- *  ACT 0  TITLE                                  ~2.5s  ( 3 beats,  1 set-up)
- *    logo card over a held establishing wide, a dog at the water cooler
- *  ACT 1  A NORMAL TUESDAY                       ~8.5s  ( 6 beats,  4 set-ups)
+ *  ACT 0  TITLE                                  ~2.7s  ( 2 beats,  1 set-up)
+ *    logo card over a held establishing wide; out at frame right, small, a
+ *    dog is sniffing the water cooler and nobody has noticed
+ *  ACT 1  A NORMAL TUESDAY                       ~7.5s  ( 6 beats,  4 set-ups)
  *    Marge's line item, Roop's water bowl, Dez's call, then FLOOR LEVEL:
  *    something walks into a 28cm-high lens and sniffs it
- *  ACT 2  THE ENCOUNTER                          ~9.0s  ( 9 beats,  5 set-ups)
+ *  ACT 2  THE ENCOUNTER                          ~8.5s  ( 9 beats,  5 set-ups)
  *    bark / flash / shake / battle music / HUD / amber cursor /
  *    "! TUESDAY APPEARED" -> Kiki has already named her, and made a badge
- *  ACT 3  THE BATTLE MENU                       ~30.0s  (23 beats,  9 set-ups)
+ *  ACT 3  THE BATTLE MENU                       ~28.0s  (23 beats, 11 set-ups)
  *    TALK  -> Brad misses; Dez puts her on a sales call, misses
  *    FEED  -> she ate at nine; she is on the org chart (ceiling shot)
  *    ADOPT -> Marge's per-head cost OVER Roop's denial, two boxes at once
- *    RUN   -> TUESDAY USED ZOOMIES: 8.5s, one camera, no cuts, she leaves
- *             frame twice and comes back
- *  ACT 4  THE ONE CORRECT THING                  ~9.5s  ( 9 beats,  5 set-ups)
- *    Brad says sit. She sits. Fanfare, 9999, and five boxes of credit at once
- *  ACT 5  BUTTON                                 ~7.5s  ( 7 beats,  3 set-ups)
+ *    RUN   -> TUESDAY USED ZOOMIES: 8s, one camera, no cuts, and the HUD,
+ *             the cursor and the command window all leave so that for once
+ *             there is nothing on the screen except a dog
+ *  ACT 4  THE ONE CORRECT THING                  ~9.0s  ( 9 beats,  5 set-ups)
+ *    Brad says sit. She sits. Fanfare, 9999, five boxes of credit at once
+ *  ACT 5  BUTTON                                 ~6.5s  ( 7 beats,  3 set-ups)
  *    the chair, the party deferring to it, HP ???, GOOD 10/10, fade
  *  ---------------------------------------------------------------------------
- *  57 timed beats / 27 camera set-ups / longest hold = the 8.5s zoomies shot.
- *  ESTIMATED 62s of scene time, MEASURED 62.4s wall clock by tools/check.mjs.
+ *  56 timed beats / 32 camera set-ups / longest hold = the 8s zoomies shot.
+ *  MEASURED 58.5s by `node tools/check.mjs --ep=ep3` (PASS, inside 55-70s).
+ *  Note the wall clock stretches on a machine with no GPU: the engine clamps
+ *  dt at 1/20s, so below 20fps every Director wait runs long. 58.5s was
+ *  measured at ~30fps; the dialogue clock is real time either way.
  * ---------------------------------------------------------------------------
  *
  * @module episodes/ep3
@@ -72,6 +77,8 @@ const SPOT = {
   downstage: [1.40, 0, 3.60],
   /** Where she is looking when she sits: past Brad, broadside to the camera. */
   sitLook: [-1.20, 0, -0.20],
+  /** Where Roop swivels to when he asks about the water bowl. */
+  roopAsks: [-0.62, 0, 1.17],
 
   /** The chair the founder is about to lose. Seat top is at y=0.49. */
   chair: [0.02, 0.49, -1.85],
@@ -279,8 +286,10 @@ async function run(ctx) {
   await d.say(c.marge, 'Line item forty-one.\nSnacks.', { cps: CPS, hold: HOLD });
 
   // He swivels to ask the room, which is the most social thing he does today.
-  d.cut('deskRowB');
-  d.face(c.roop, [-3.60, 0, -0.50]);
+  // Shot from the open aisle: the cubicle partition at x=-2.5 eats every
+  // angle that comes at his desk from the reception side.
+  d.face(c.roop, SPOT.roopAsks);
+  d.cut(single(d, c.roop, 20, 3.0));
   d.anim(c.roop, 'shrug');
   await d.say(c.roop, 'Who filled the water bowl\nby the copier?', { cps: CPS, hold: HOLD });
 
@@ -498,8 +507,10 @@ async function run(ctx) {
   await d.say(c.brad, '......', { cps: CPS, hold: HOLD });
   await d.say(c.brad, 'Nothing in this building\nhas ever listened to me.', { cps: CPS, hold: HOLD });
 
-  // THE CHORUS. Five boxes, five ids, all kept, all at once, hand-placed so
-  // they tile the frame above the HUD instead of dodging each other.
+  // THE CHORUS. Five boxes, five ids, all kept, all at once, hand-placed in a
+  // 3-2 grid that tiles the frame above the HUD instead of dodging. Every
+  // line is kept under 13 characters so no box grows a third row and shoves
+  // the bottom row down into the HUD.
   cutTo(d, SHOT.battle);
   d.anim(c.kiki, 'cheer');
   d.anim(c.dez, 'point');
@@ -508,16 +519,16 @@ async function run(ctx) {
   d.anim(c.brad, 'point');
 
   const chorus = [
-    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 118, cps: CPS, hold: 460 }),
+    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 130, cps: CPS, hold: 460 }),
   ];
   await d.beat(150);
-  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 118, cps: CPS, hold: 460 }));
+  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 130, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 118, cps: CPS, hold: 460 }));
+  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 130, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 118, cps: CPS, hold: 460 }));
+  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 130, cps: CPS, hold: 460 }));
   await d.beat(150);
-  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118, cps: CPS, hold: 460 }));
+  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 130, cps: CPS, hold: 460 }));
   await d.all(chorus);
   await d.beat(220);
   d.closeBoxes(null);

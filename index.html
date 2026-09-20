@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OFFICE HOURS VII — a MULCH production</title>
+<meta name="description" content="Three sixty-second PS1-era comedy shorts about a startup with eleven days of runway. Not video — a live 3D scene in your browser.">
+<meta name="theme-color" content="#05070c">
+<meta name="color-scheme" content="dark">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OFFICE HOURS VII">
+<meta property="og:title" content="OFFICE HOURS VII — a MULCH production">
+<meta property="og:description" content="Three sixty-second PS1-era comedy shorts about a startup with eleven days of runway. Not video — a live 3D scene in your browser.">
+<meta property="og:image" content="/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The OFFICE HOURS VII logo: a crumpled sheet of paper the size of a meteor falling towards a very small business park.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="OFFICE HOURS VII — a MULCH production">
+<meta name="twitter:description" content="Three sixty-second PS1-era comedy shorts about a startup with eleven days of runway.">
+<meta name="twitter:image" content="/assets/og.png">
+
+<link rel="icon" href="/assets/mark.png" type="image/png">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="stylesheet" href="/css/site.css">
+
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+</head>
+
+<body class="gallery">
+<a class="skip" href="#episodes">Skip to episodes</a>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <span><b>MULCH, Inc.</b></span>
+    <span class="topbar-mid">The Everything Layer</span>
+    <span class="runway">Runway: 11 days</span>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <h1 class="sr-only">Office Hours 7 — a MULCH production</h1>
+
+      <!-- The lockup is drawn by /js/brand/logo.js and redrawn on resize. -->
+      <div class="logo-slot" id="logo-slot" aria-hidden="true"></div>
+
+      <p class="pitch">
+        Three sixty-second workplace comedies about a company with
+        <em>eleven days of money left</em> — rendered live in your browser at 384&times;216.
+      </p>
+
+      <ul class="facts">
+        <li>3 episodes</li>
+        <li>~60 seconds each</li>
+        <li>Live 3D, not video</li>
+        <li>Nothing to install</li>
+      </ul>
+
+      <a class="start" id="start" href="/watch.html?ep=ep1">
+        <span class="tri" aria-hidden="true">&#9654;</span>
+        Start — Episode One
+      </a>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ep-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="ep-h" class="chroma">Episode Select</h2>
+        <span class="line" aria-hidden="true"></span>
+        <span class="count" id="ep-count">03 / 03</span>
+      </div>
+      <div class="episodes" id="episodes">
+        <noscript>
+          <p class="pitch">
+            The episodes run as live 3D scenes, so JavaScript is required.
+            The three of them are called STANDUP, RUNWAY and TUESDAY.
+          </p>
+        </noscript>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cast-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="cast-h" class="chroma">The Cast</h2>
+        <span class="line" aria-hidden="true"></span>
+        <span class="count">06 / 06</span>
+      </div>
+      <ul class="cast" id="cast"></ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="about-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="about-h" class="chroma">Not a Video</h2>
+        <span class="line" aria-hidden="true"></span>
+      </div>
+      <div class="about">
+        <div>
+          <p>
+            Pressing play does not stream anything. It builds an office, hires six people and
+            runs a directed cutscene at <strong>384&times;216</strong> — camera cuts, procedural
+            animation, dialogue boxes that type themselves, the lot. Every frame is being
+            rendered right now, on your machine, badly on purpose.
+          </p>
+          <p>
+            There are no image files, no model files, no audio files and no fonts.
+            Every texture is <strong>drawn onto a canvas</strong> at load, every voice is
+            <strong>synthesised with WebAudio</strong>, and the whole thing is plain ES modules
+            with no build step. If a character sounds like a trombone having a bad quarter,
+            that is a few oscillators and a filter sweep.
+          </p>
+          <p>
+            It is a Final Fantasy VII riff about a Series&nbsp;A company whose product is never
+            explained. Nobody is punching down. Everyone is doing their best.
+          </p>
+        </div>
+        <dl class="specs">
+          <div><dt>Resolution</dt><dd>384 &times; 216</dd></div>
+          <div><dt>Renderer</dt><dd>WebGL2 &middot; three r160</dd></div>
+          <div><dt>Textures</dt><dd>Canvas, at runtime</dd></div>
+          <div><dt>Voices</dt><dd>WebAudio, synthesised</dd></div>
+          <div><dt>Asset files</dt><dd>0</dd></div>
+          <div><dt>Build step</dt><dd>None</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span>Office Hours 7 — a MULCH production</span>
+    <span>No real companies were named in the making of this.</span>
+  </div>
+</footer>
+
+<div class="crt" aria-hidden="true"></div>
+
+<script type="module" src="/js/gallery.js"></script>
+</body>
+</html>

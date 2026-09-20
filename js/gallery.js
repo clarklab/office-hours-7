@@ -624,3 +624,10 @@ export function initGallery() {
 
   return () => { for (const s of stops) if (typeof s === 'function') s(); };
 }
+
+// Page entry point. index.html loads this module directly, so it boots itself rather
+// than needing an inline <script> (which a strict CSP would have to whitelist). The
+// #logo-slot check means importing this module from anywhere else is side-effect free.
+if (typeof document !== 'undefined' && document.getElementById('logo-slot')) {
+  initGallery();
+}

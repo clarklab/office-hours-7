@@ -2,13 +2,14 @@
   "name": "office-hours-7",
   "version": "1.0.0",
   "private": true,
-  "description": "OFFICE HOURS VII — a PS1-styled 3D comedy-shorts site. The site itself is plain ES modules and needs no npm at runtime; everything here is dev tooling only.",
+  "description": "OFFICE HOURS VII \u2014 a PS1-styled 3D comedy-shorts site. The site itself is plain ES modules and needs no npm at runtime; everything here is dev tooling only.",
   "type": "module",
   "scripts": {
     "serve": "node tools/serve.mjs 8080",
-    "check": "node tools/check.mjs",
+    "check": "node tools/csp-hash.mjs && node tools/check.mjs",
     "check:fast": "node tools/check.mjs --fast",
-    "thumbs": "node tools/shoot.mjs"
+    "thumbs": "node tools/shoot.mjs",
+    "csp": "node tools/csp-hash.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.49.0"

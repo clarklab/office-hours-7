@@ -51,7 +51,7 @@ export function createMarge() {
   return createRig(PROFILES.marge, (parts, api) => {
     const d = api.dims;
 
-    const body = buildHuman(parts, d, {
+    buildHuman(parts, d, {
       skin: SKINS.deep,
       top: SUIT,
       sleeve: SUIT,

@@ -66,7 +66,7 @@ export function createBrad() {
   return createRig(PROFILES.brad, (parts, api) => {
     const d = api.dims;
 
-    const body = buildHuman(parts, d, {
+    buildHuman(parts, d, {
       skin: SKINS.fair,
       top: SHIRT,
       sleeve: SHIRT,

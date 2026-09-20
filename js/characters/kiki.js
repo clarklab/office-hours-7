@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { PROFILES, register } from '/js/characters/index.js';
 import {
-  createRig, buildHuman, taperedBox, boxMesh, cylMesh,
+  createRig, buildHuman, taperedBox, boxMesh,
   attach, faceTexture, addFace, SKINS,
 } from '/js/characters/rig.js';
 import { ps1Material } from '/js/core/ps1.js';

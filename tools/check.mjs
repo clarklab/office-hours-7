@@ -81,9 +81,51 @@ const FAST_SPEED = 3;
 const TARGET_MIN_S = 55;
 const TARGET_MAX_S = 70;
 
-/** Frame-time thresholds, milliseconds. Past these the show is not watchable. */
+/**
+ * Frame-time thresholds, milliseconds. Past these the show is not watchable.
+ *
+ * These are calibrated for a real GPU. A software rasteriser (SwiftShader,
+ * llvmpipe) cannot reach them for this scene no matter what an episode does:
+ * measured on a 4-core container with no GPU, the office plus five characters
+ * costs ~50ms/frame with an empty episode, and an A/B of the battle HUD moved
+ * that number by 0.0ms. Holding software rendering to the GPU limit would fail
+ * every episode for the machine's reason rather than the show's, so the limit
+ * is relaxed when the renderer reports itself as software — the check still
+ * catches an episode that is pathologically slow FOR THAT RENDERER, which is
+ * what it is actually for.
+ */
 const FPS_P50_LIMIT = 40;
 const FPS_P95_LIMIT = 120;
+const FPS_P50_LIMIT_SOFTWARE = 85;
+const FPS_P95_LIMIT_SOFTWARE = 220;
+
+/**
+ * Asks the page what is actually rasterising. Runs inside the browser.
+ * @returns {{renderer:string, software:boolean}|null}
+ */
+function readRenderer() {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl) return null;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(
+      (ext && gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '',
+    );
+    const out = {
+      renderer: name,
+      software: /swiftshader|llvmpipe|software|mesa offscreen/i.test(name),
+    };
+    // Release the probe context immediately. Browsers cap live WebGL contexts
+    // and evict the oldest, so leaking this one could itself cause the context
+    // loss this tool reports.
+    const lose = gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    return out;
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------------------------------------------ chrome */
 
@@ -173,6 +215,7 @@ export function harnessInit(cfg) {
     glLost: 0,
     glRestored: 0,
     glContexts: 0,
+    glProbeLost: 0,
     frames: [],
     ended: null,
     endedBy: null,
@@ -242,6 +285,15 @@ export function harnessInit(cfg) {
       this.__ohWatched = true;
       H.glContexts++;
       this.addEventListener('webglcontextlost', (e) => {
+        // A detached canvas is a capability probe, not the stage. player.js
+        // tests for WebGL2 support by making a context and then deliberately
+        // releasing it with WEBGL_lose_context — responsible cleanup that would
+        // otherwise be reported as the show crashing. Only a canvas actually in
+        // the document can be the stage losing its context.
+        if (!this.isConnected) {
+          H.glProbeLost++;
+          return;
+        }
         H.glLost++;
         H.errors.push({ kind: 'webgl', message: `WebGL context LOST (${e.statusMessage || 'no reason given'})` });
       });
@@ -294,6 +346,7 @@ function readHarness() {
     glLost: H.glLost,
     glRestored: H.glRestored,
     glContexts: H.glContexts,
+    glProbeLost: H.glProbeLost,
     frameCount: f.length,
     p50: Math.round(at(0.5) * 100) / 100,
     p95: Math.round(at(0.95) * 100) / 100,
@@ -798,7 +851,15 @@ async function checkEpisode(ctx, id) {
       // going one poll LATER. A loss in the same 200ms window as the end card
       // or the error card is the player disposing its stage, which is correct
       // behaviour and must not be reported as a crash.
-      rep.glLostInPlay = prevGlLost;
+      //
+      // The guard below is the whole point of that rule: without it, the poll
+      // that runs AFTER teardown promotes the teardown's own loss into
+      // glLostInPlay, and every episode reports a phantom crash. Only carry a
+      // previous poll's count forward while the episode is demonstrably still
+      // running.
+      const stillPlaying = !s.ended && !s.done
+        && (s.state === 'playing' || s.state === 'running');
+      if (stillPlaying) rep.glLostInPlay = prevGlLost;
       prevGlLost = s.glLost;
       if (s.state === 'playing' || s.state === 'running') sawPlaying = true;
 
@@ -917,12 +978,22 @@ async function checkEpisode(ctx, id) {
 
     /* ---- frame rate ---- */
     const h = await page.evaluate(readHarness).catch(() => null);
+    const gpu = await page.evaluate(readRenderer).catch(() => null);
+    const soft = !!(gpu && gpu.software);
+    const p50Limit = soft ? FPS_P50_LIMIT_SOFTWARE : FPS_P50_LIMIT;
+    const p95Limit = soft ? FPS_P95_LIMIT_SOFTWARE : FPS_P95_LIMIT;
+    if (gpu) {
+      rep.notes.push(
+        `renderer: ${gpu.renderer}${soft ? ' (software — frame-time limits relaxed to '
+          + `${p50Limit}/${p95Limit}ms; this machine has no GPU)` : ''}`,
+      );
+    }
     if (h && h.frameCount > 30) {
-      if (h.p50 > FPS_P50_LIMIT) {
+      if (h.p50 > p50Limit) {
         rep.failures.push(
-          `FRAME RATE COLLAPSE: median frame time ${h.p50}ms (${(1000 / h.p50).toFixed(1)} fps), limit ${FPS_P50_LIMIT}ms`,
+          `FRAME RATE COLLAPSE: median frame time ${h.p50}ms (${(1000 / h.p50).toFixed(1)} fps), limit ${p50Limit}ms`,
         );
-      } else if (h.p95 > FPS_P95_LIMIT) {
+      } else if (h.p95 > p95Limit) {
         rep.warnings.push(`long frames: p95 ${h.p95}ms, worst ${h.worst}ms`);
       }
     }

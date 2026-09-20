@@ -16,11 +16,14 @@
  *   ACT 2  THE MENU ESCALATION four menu beats, seven bad ideas    ~34.0s
  *   ACT 3  THE REBRAND         fanfare it does not deserve          ~9.5s
  *   ACT 4  BUTTON              the lights go, the talking does not  ~8.5s
- *                                                            TOTAL ~62.5s
+ *                                                       design total ~59s
+ *   MEASURED 59.5 / 60.8 / 65.8s over three 1x runs (tools/check.mjs --ep=ep2).
+ *   The stage clock is dt-clamped at 50ms, so a slow renderer stretches every
+ *   d.beat(); the beats below are kept short on purpose to hold the window.
  * ```
  *
- * Beats: 16 camera setups, 33 spoken lines, 4 menus, 8 damage pops, 1 title
- * card, 1 rebrand card, 1 unison stand.
+ * Beats: 19 distinct camera setups over 31 cuts, 31 spoken lines, 4 menus,
+ * 8 damage pops, 1 logo card, 1 rebrand card, 1 unison stand.
  *
  * @module episodes/ep2
  */
@@ -46,8 +49,14 @@ const BLOCKING = {
   dez: { at: [8.47, 0, 4.05], look: [10.6, 0, 4.05], back: [7.80, 0, 4.05] },
   roop: { at: [8.47, 0, 5.30], look: [10.6, 0, 5.30], back: [7.80, 0, 5.30] },
   kiki: { at: [10.33, 0, 4.05], look: [8.2, 0, 4.05], back: [11.05, 0, 4.05] },
-  brad: { at: [9.35, 0, 5.88], look: [9.4, 0, 1.15], back: [9.35, 0, 6.62] },
+  brad: { at: [10.33, 0, 2.85], look: [8.2, 0, 2.85], back: [11.05, 0, 2.85] },
 };
+
+/*
+ * Nobody takes the head of the table. The chair at the foot stays empty all
+ * episode, which keeps the long lens down the table clear and is its own small
+ * joke about a founder who does not want to look like the boss.
+ */
 
 /** Where damage numbers land: over the table, i.e. over the company. */
 const COMPANY = { x: 9.35, y: 1.35, z: 4.0 };
@@ -62,36 +71,42 @@ const COMPANY = { x: 9.35, y: 1.35, z: 4.0 };
  * @type {Object<string, {pos:number[], look:number[], fov:number}>}
  */
 const SHOTS = {
-  /** Down the table past Brad's head at Marge and the chart. The master. */
-  master: { pos: [10.10, 1.78, 6.95], look: [9.30, 1.45, 1.10], fov: 54 },
+  /** Down the table over the empty head chair at Marge and the chart. Kept
+   *  back and up: Roop's CRT and Kiki's hair loom into any closer lens. */
+  master: { pos: [10.42, 1.86, 6.90], look: [9.25, 1.30, 1.10], fov: 54 },
   /** Low, off the table's near corner, looking up at the chart. */
-  chartLow: { pos: [8.60, 0.48, 2.35], look: [8.25, 1.78, 0.45], fov: 56 },
+  chartLow: { pos: [8.70, 0.78, 2.55], look: [8.70, 1.45, 0.45], fov: 52 },
   /** Marge, medium — the start of the push. */
-  margeMed: { pos: [9.42, 1.62, 4.20], look: [9.40, 1.50, 1.25], fov: 46 },
+  margeMed: { pos: [9.42, 1.55, 4.20], look: [9.40, 1.46, 1.30], fov: 46 },
   /** Marge, tight. Glasses and no expression. */
-  margeTight: { pos: [9.42, 1.58, 2.55], look: [9.40, 1.54, 1.30], fov: 38 },
-  /** Over Brad's shoulder, down the table. */
-  otsBrad: { pos: [8.95, 1.62, 6.60], look: [9.42, 1.35, 1.60], fov: 48 },
-  /** Across the table at Dez, seated. */
-  dezSeated: { pos: [9.95, 1.36, 3.05], look: [8.55, 1.28, 4.05], fov: 46 },
-  /** Across the table at Kiki, seated. */
-  kikiSeated: { pos: [9.35, 1.34, 5.00], look: [10.40, 1.26, 4.10], fov: 46 },
+  margeTight: { pos: [9.42, 1.50, 2.70], look: [9.40, 1.48, 1.25], fov: 36 },
+  /** Raised three-quarter from the west corner — all five, nobody looming. */
+  wideWest: { pos: [6.75, 1.95, 6.15], look: [9.60, 1.10, 3.00], fov: 60 },
+  /** Across the table at Brad, seated. */
+  bradSeated: { pos: [8.55, 1.44, 1.95], look: [10.30, 1.40, 2.88], fov: 46 },
+  /** Across the table at Dez, seated, with Roop behind him in depth. */
+  dezSeated: { pos: [9.90, 1.44, 2.25], look: [8.58, 1.38, 3.95], fov: 46 },
+  /** Past Dez's head at Kiki, seated. */
+  kikiSeated: { pos: [7.30, 1.36, 4.55], look: [10.30, 1.28, 3.92], fov: 44 },
   /** Across the table at Roop, seated. */
-  roopSeated: { pos: [10.25, 1.34, 4.85], look: [8.55, 1.26, 5.30], fov: 48 },
+  roopSeated: { pos: [10.50, 1.38, 4.55], look: [8.55, 1.35, 5.32], fov: 46 },
   /** Dez, standing, after the chairs go. */
-  dezUp: { pos: [9.90, 1.62, 3.10], look: [7.95, 1.56, 4.05], fov: 48 },
+  dezUp: { pos: [10.10, 1.60, 3.30], look: [7.90, 1.57, 4.02], fov: 46 },
   /** Kiki, standing. */
-  kikiUp: { pos: [9.35, 1.48, 4.95], look: [10.95, 1.44, 4.10], fov: 48 },
+  kikiUp: { pos: [8.60, 1.42, 4.70], look: [10.98, 1.39, 4.08], fov: 46 },
   /** Roop, standing. */
-  roopUp: { pos: [9.85, 1.62, 4.50], look: [7.95, 1.58, 5.30], fov: 50 },
+  roopUp: { pos: [10.30, 1.58, 4.60], look: [7.92, 1.53, 5.26], fov: 48 },
   /** Brad, standing, from below. A hero angle for a bad idea. */
-  bradHero: { pos: [9.40, 1.15, 4.75], look: [9.36, 1.72, 6.40], fov: 46 },
+  bradHero: { pos: [9.20, 1.12, 3.90], look: [10.98, 1.58, 2.90], fov: 46 },
   /** High on the table. The empty-chair shot. */
   chairs: { pos: [9.40, 2.30, 1.70], look: [9.35, 0.62, 4.40], fov: 62 },
   /** Straight up at the drop ceiling. */
-  ceiling: { pos: [7.10, 1.05, 4.20], look: [8.70, 2.70, 3.10], fov: 62 },
-  /** Wide from the far corner, clear of everyone's stand-back marks. */
-  wideEast: { pos: [11.90, 1.90, 6.60], look: [8.60, 1.05, 2.60], fov: 62 },
+  ceiling: { pos: [8.30, 1.00, 2.10], look: [9.30, 2.70, 3.60], fov: 62 },
+  /** The four of them in one frame, shot past Marge from the board end. Set
+   *  at seated eye height so heads land mid-frame, clear of the battle HUD. */
+  partyReverse: { pos: [10.60, 1.40, 0.90], look: [9.20, 1.34, 4.60], fov: 54 },
+  /** Wide from the foot corner — all five stand-back marks are in it. */
+  wideStanding: { pos: [11.60, 1.75, 6.75], look: [8.90, 1.20, 3.10], fov: 62 },
 };
 
 /* ----------------------------------------------------------------- the HUD */
@@ -168,7 +183,7 @@ function cutThePower(office) {
   // One call per panel, but they share a cached material, so this is cheap and
   // it reaches the whole floor.
   for (const p of panels) p.userData.setLevel(0.04);
-  if (panels.length) undo.push(() => { panels[0].userData.setLevel(1); });
+  if (panels.length) undo.push(() => { for (const p of panels) p.userData.setLevel(1); });
 
   return () => { for (const fn of undo) fn(); };
 }
@@ -215,7 +230,7 @@ const MENUS = [
     pick: 2,
   },
   {
-    prompt: 'IDEAS',
+    prompt: 'MORE IDEAS',
     options: [
       'SUBLET THE MEETING ROOM',
       'BECOME A NONPROFIT, LEGALLY',
@@ -225,7 +240,7 @@ const MENUS = [
     pick: 1,
   },
   {
-    prompt: 'IDEAS',
+    prompt: 'IDEAS, CONT.',
     options: [
       'LOWER THE THERMOSTAT',
       'DELETE THE STAGING SERVER',
@@ -235,7 +250,7 @@ const MENUS = [
     pick: 2,
   },
   {
-    prompt: 'IDEAS',
+    prompt: 'FINAL IDEAS',
     options: [
       'EAT THE PLANTS',
       'CHARGE FOR THE WIFI WE CUT',
@@ -254,7 +269,7 @@ const MENUS = [
  * @returns {Promise<number>}
  */
 function ideas(d, i) {
-  return d.menu(Object.assign({ style: 'battle', auto: 1600 }, MENUS[i]));
+  return d.menu(Object.assign({ style: 'battle', auto: 1300 }, MENUS[i]));
 }
 
 /* ------------------------------------------------------------------- the run */
@@ -283,124 +298,131 @@ async function run(ctx) {
     /* ================================================== ACT 1 — OPEN (~10.5s) */
 
     d.cut(SHOTS.master);
-    await d.title({ logo: true, subtitle: 'EPISODE TWO — "RUNWAY"', ms: 2000 });
+    await d.title({ logo: true, subtitle: 'EPISODE TWO — "RUNWAY"', ms: 1500 });
 
     d.music('tense');
     d.anim(roop, 'slump');
     d.anim(kiki, 'type');
-    await d.beat(400);
+    await d.beat(250);
 
     d.face(marge, 'meetingFoot');
-    await d.say(marge, 'This is the burn chart.', { anchor: 'tm', cps: 36 });
+    await d.say(marge, 'This is the burn chart.', { anchor: 'tm', cps: 46, hold: 330 });
 
     d.cut(SHOTS.chartLow);
     d.anim(marge, 'point');
-    await d.say(marge, 'The line is meant to go up.', { anchor: 'tr', cps: 36 });
+    await d.say(marge, 'The line is meant to go up.', { anchor: 'tr', cps: 46, hold: 330 });
 
     d.cut(SHOTS.margeMed);
     d.anim(marge, 'idle');
     await d.all(
-      d.move(SHOTS.margeTight, 1100, 'push'),
-      d.say(marge, 'It is doing the other one.', { anchor: 'bm', cps: 32, hold: 650 }),
+      d.move(SHOTS.margeTight, 1000, 'push'),
+      d.say(marge, 'It is doing the other one.', { anchor: 'bm', cps: 30, hold: 670 }),
     );
 
-    d.cut('meetingReverse');
-    await d.say(marge, 'Runway.\n......Eleven days.', { anchor: 'tm', cps: 26, hold: 500 });
+    d.cut(SHOTS.partyReverse);
+    await d.say(marge, 'Runway.\n......Eleven days.', { anchor: 'tm', cps: 26, hold: 350 });
 
     d.sfx('confirm');
     d.hud(hudRows());
     d.emote(brad, 'sweat');
-    await d.beat(900);
+    await d.beat(550);
 
     /* ======================================== ACT 2 — THE MENU ESCALATION (~34s) */
 
-    d.cut(SHOTS.otsBrad);
-    await d.say(brad, 'The floor is open.\nThere are no bad ideas.', { anchor: 'tm', cps: 38 });
+    d.cut(SHOTS.bradSeated);
+    await d.say(brad, 'Floor is open.\nThere are no bad ideas.', {
+      anchor: 'tm', cps: 48, hold: 290,
+    });
 
     d.cut('meetingWide');
     await ideas(d, 0);
 
     d.cut(SHOTS.kikiSeated);
     d.targetOn(kiki);
-    await d.say(kiki, 'We sell the espresso\nmachine.', { anchor: 'tl', cps: 36 });
+    await d.say(kiki, 'We sell the espresso\nmachine.', { anchor: 'tl', cps: 48, hold: 290 });
     d.targetOn(null);
 
     d.cut(SHOTS.margeTight);
-    await d.say(marge, 'It is leased.', { anchor: 'bm', cps: 24, hold: 500 });
+    await d.say(marge, 'It is leased.', { anchor: 'bm', cps: 26, hold: 510 });
     burn('1 DAY', 10);
-    await d.beat(500);
+    d.anim(dez, 'slump');
+    await d.beat(250);
 
     d.cut(SHOTS.roopSeated);
     d.anim(roop, 'idle');
     await d.say(roop, 'Then we stop paying\nfor the internet.', {
-      id: 'roop-a', keep: true, anchor: 'tl', cps: 36,
+      id: 'roop-a', keep: true, anchor: 'tl', cps: 48, hold: 260,
     });
-    await d.say(roop, '......I would have to\ngo too.', { id: 'roop-b', anchor: 'bl', cps: 26 });
+    await d.say(roop, '......I would have to\ngo too.', {
+      id: 'roop-b', anchor: 'bl', cps: 30, hold: 550,
+    });
     d.closeBoxes();
-
-    d.cut(SHOTS.margeMed);
-    await d.say(marge, 'Eight days.', { anchor: 'tm', cps: 20, hold: 450 });
     burn('2 DAYS', 8);
 
-    d.cut('meetingWide');
+    d.cut(SHOTS.wideWest);
     await ideas(d, 1);
 
     d.cut(SHOTS.dezSeated);
     d.targetOn(dez);
-    await d.say(dez, 'We become a nonprofit.', { anchor: 'tr', cps: 38 });
-    await d.say(dez, 'Legally. To confuse\nthe investors.', { anchor: 'tr', cps: 36 });
+    await d.say(dez, 'We become a nonprofit.', { anchor: 'tr', cps: 48, hold: 260 });
+    await d.say(dez, 'Legally. To confuse\nthe investors.', { anchor: 'tr', cps: 46, hold: 350 });
     d.targetOn(null);
 
     d.cut(SHOTS.chartLow);
     d.anim(marge, 'point');
-    await d.say(marge, 'The filing fee is\nthree days.', { anchor: 'tr', cps: 32 });
+    await d.say(marge, 'The filing fee is\nthree days.', { anchor: 'tr', cps: 44, hold: 350 });
     burn('3 DAYS', 5);
     d.anim(marge, 'idle');
-    await d.beat(400);
+    await d.beat(200);
 
     /* ---- the chairs ---- */
 
-    d.cut('meetingWide');
+    d.cut(SHOTS.master);
     await ideas(d, 2);
 
-    d.cut('meetingReverse');
+    d.cut(SHOTS.partyReverse);
     d.targetOn(dez);
-    await d.say(dez, 'We sell the office chairs.', { anchor: 'tm', cps: 34, hold: 250 });
+    await d.say(dez, 'We sell the office chairs.', { anchor: 'tm', cps: 34, hold: 180 });
     d.targetOn(null);
-    await d.beat(1000);
+    await d.beat(650);
 
+    // The rise. All four marks are the same 0.7m, so one duration syncs them
+    // to the frame. The face() calls land immediately after walk() has set its
+    // travel yaw and overwrite it, so they back away still facing the table
+    // instead of turning their backs on it.
     d.sfx('whoosh', { gain: 0.8 });
-    await d.all(
-      d.walk(dez, BLOCKING.dez.back, 620),
-      d.walk(roop, BLOCKING.roop.back, 620),
-      d.walk(kiki, BLOCKING.kiki.back, 620),
-      d.walk(brad, BLOCKING.brad.back, 620),
-    );
-    d.face(dez, [9.4, 0, 4.05]);
-    d.face(roop, [9.4, 0, 5.30]);
-    d.face(kiki, [9.4, 0, 4.05]);
-    d.face(brad, [9.4, 0, 1.15]);
+    const rise = [
+      d.walk(dez, BLOCKING.dez.back, 550),
+      d.walk(roop, BLOCKING.roop.back, 550),
+      d.walk(kiki, BLOCKING.kiki.back, 550),
+      d.walk(brad, BLOCKING.brad.back, 550),
+    ];
+    d.face(dez, [9.4, 0, 4.05], 200);
+    d.face(roop, [9.4, 0, 5.30], 200);
+    d.face(kiki, [9.4, 0, 4.05], 200);
+    d.face(brad, [9.4, 0, 2.85], 200);
+    await d.all(rise);
 
     d.cut(SHOTS.chairs);
-    await d.beat(1500);
+    await d.beat(1000);
 
     d.cut(SHOTS.margeTight);
-    await d.say(marge, 'Those are leased as well.', { anchor: 'bm', cps: 30, hold: 600 });
+    await d.say(marge, 'Those are leased as well.', { anchor: 'bm', cps: 32, hold: 550 });
     burn('2 DAYS', 3);
-    await d.beat(400);
+    await d.beat(200);
 
     /* ---- printers ---- */
 
-    d.cut(SHOTS.wideEast);
+    d.cut(SHOTS.wideStanding);
     await ideas(d, 3);
 
     d.cut(SHOTS.roopUp);
     d.targetOn(roop);
-    await d.say(roop, 'We mine crypto\non the printers.', { anchor: 'tl', cps: 34 });
+    await d.say(roop, 'We mine crypto\non the printers.', { anchor: 'tl', cps: 46, hold: 300 });
     d.targetOn(null);
 
     d.cut(SHOTS.kikiUp);
-    await d.say(kiki, 'They print one page\na minute.', { anchor: 'tr', cps: 38 });
+    await d.say(kiki, 'They print one page\na minute.', { anchor: 'tr', cps: 48, hold: 290 });
 
     d.cut(SHOTS.roopUp);
     await d.say(roop, 'Then we mine slowly.', { anchor: 'tl', cps: 28, hold: 600 });
@@ -409,28 +431,31 @@ async function run(ctx) {
     d.cut(SHOTS.kikiUp);
     d.anim(kiki, 'point');
     await d.say(kiki, 'We charge the sales team\nfor the chairs they sold.', {
-      anchor: 'tr', cps: 40,
+      anchor: 'tr', cps: 50, hold: 290,
     });
     d.anim(kiki, 'idle');
     burn('+1 DAY', 2, '#7ee04a');
+    d.emote(dez, 'exclaim');
 
     d.cut(SHOTS.dezUp);
-    await d.say(dez, 'I am the sales team.', { anchor: 'tl', cps: 30 });
+    await d.say(dez, 'I am the sales team.', { anchor: 'tl', cps: 34, hold: 350 });
 
     d.cut(SHOTS.kikiUp);
-    await d.say(kiki, 'I know.', { anchor: 'tr', cps: 18, hold: 650 });
+    await d.say(kiki, 'I know.', { anchor: 'tr', cps: 18, hold: 600 });
 
     d.cut(SHOTS.margeMed);
-    await d.say(marge, 'He will expense it.', { anchor: 'tm', cps: 30, hold: 450 });
+    await d.say(marge, 'He will expense it.', { anchor: 'tm', cps: 32, hold: 310 });
     burn('1 DAY', 1);
 
     /* ================================== ACT 3 — BRAD'S REBRAND (~9.5s) */
 
     d.cut(SHOTS.bradHero);
     d.targetOn(brad);
-    await d.say(brad, 'I have been holding\nsomething back.', { anchor: 'tm', cps: 36 });
+    await d.say(brad, 'I have been saving this.', { anchor: 'tm', cps: 46, hold: 300 });
     d.anim(brad, 'point');
-    await d.say(brad, 'We do not need money.\nWe need a name.', { anchor: 'tm', cps: 38 });
+    await d.say(brad, 'We do not need money.\nWe need a name.', {
+      anchor: 'tm', cps: 46, hold: 310,
+    });
     d.targetOn(null);
     d.anim(brad, 'cheer');
 
@@ -440,46 +465,50 @@ async function run(ctx) {
       title: 'MLCH',
       subtitle: 'THE EVERYTHING LAYER',
       logo: false,
-      ms: 1300,
+      ms: 1000,
     });
 
     d.cut(SHOTS.margeTight);
     d.anim(brad, 'idle');
-    await d.say(marge, 'That is our name with\nthe vowels taken out.', { anchor: 'bm', cps: 36 });
+    d.emote(roop, 'question');
+    await d.say(marge, 'That is our name with\nthe vowels taken out.', {
+      anchor: 'bm', cps: 48, hold: 350,
+    });
     burn('1 DAY', 0);
     d.updateHud({ PAYROLL: { hp: 'FRIDAY?' }, MORALE: { hp: '1/10' } });
 
     d.cut(SHOTS.bradHero);
-    await d.say(brad, 'The domain was available.', { anchor: 'tm', cps: 34, hold: 550 });
+    await d.say(brad, 'The domain was available.', { anchor: 'tm', cps: 34, hold: 510 });
 
     /* ============================================ ACT 4 — BUTTON (~8.5s) */
 
     d.cut(SHOTS.ceiling);
-    const cutOff = d.say(brad, 'And in phase two we—', { anchor: 'bm', cps: 30, hold: 200 });
-    await d.wait(650);
+    const cutOff = d.say(brad, 'And in phase two we—', { anchor: 'bm', cps: 30, hold: 180 });
+    await d.wait(500);
 
     restoreLights = cutThePower(office);
     d.music(null);
-    d.sfx('crash', { gain: 0.55 });
+    d.sfx('crash', { gain: 0.32, rate: 0.55 });
+    d.sfx('cancel', { gain: 0.7, rate: 0.45 });
     d.shake(0.05, 240);
     await cutOff;
 
-    d.cut(SHOTS.wideEast);
-    await d.say(kiki, 'Was that us?', { anchor: 'tr', cps: 30 });
-    await d.say(roop, 'That was the power.', { anchor: 'tl', cps: 26 });
+    d.cut(SHOTS.wideStanding);
+    await d.say(kiki, 'Was that us?', { anchor: 'tr', cps: 34, hold: 400 });
+    await d.say(roop, 'That was the power.', { anchor: 'tl', cps: 28, hold: 450 });
 
     d.cut('meetingReverse');
-    await d.say(dez, 'Is this dramatic\nor is this bad?', { anchor: 'tm', cps: 34 });
+    await d.say(dez, 'Is this dramatic\nor is this bad?', { anchor: 'tm', cps: 46, hold: 350 });
     d.updateHud({ PAYROLL: { hp: '......' }, MORALE: { hp: '0/10' } });
-    await d.say(brad, 'It can be both.', { anchor: 'bm', cps: 28, hold: 700 });
+    await d.say(brad, 'It can be both.', { anchor: 'bm', cps: 28, hold: 550 });
 
     d.cut(SHOTS.margeTight);
-    await d.beat(400);
-    await d.say(marge, 'I can still see the chart.', { anchor: 'tm', cps: 26, hold: 1100 });
+    await d.beat(300);
+    await d.say(marge, 'I can still see the chart.', { anchor: 'tm', cps: 26, hold: 900 });
 
-    await d.beat(500);
+    await d.beat(250);
     d.closeBoxes();
-    await d.fadeOut(900);
+    await d.fadeOut(550);
   } finally {
     restoreLights();
   }

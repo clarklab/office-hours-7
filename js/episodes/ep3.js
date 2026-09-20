@@ -8,28 +8,29 @@
  * The humans are ridiculous. The dog is not. That is the entire joke.
  *
  * ---------------------------------------------------------------------------
- * BEAT SHEET / RUNNING ESTIMATE  (measured with `node tools/check.mjs --ep=ep3`)
+ * BEAT SHEET / RUNNING ESTIMATE
  * ---------------------------------------------------------------------------
- *  ACT 0  TITLE                                          ~3s   (2 beats)
- *    logo card -> a held establishing wide
- *  ACT 1  A NORMAL TUESDAY                               ~8s   (5 beats)
- *    Marge's line item, Roop's water bowl, Dez's call,
- *    then a floor-level shot of something sniffing past
- *  ACT 2  THE ENCOUNTER                                  ~9s   (8 beats)
- *    flash / shake / battle music / HUD / target cursor /
- *    "! TUESDAY APPEARED" -> Kiki has already named her
- *  ACT 3  THE BATTLE MENU                               ~31s  (22 beats)
- *    TALK  -> Brad misses, Dez puts her on a sales call
- *    FEED  -> Kiki fed her at nine, she is on the org chart
- *    ADOPT -> Marge's per-head cost over Roop's denial (two boxes)
- *    RUN   -> TUESDAY USED ZOOMIES: one long unbroken low wide
- *  ACT 4  THE ONE CORRECT THING                          ~9s   (8 beats)
- *    Brad says sit. She sits. Fanfare. Five boxes of credit.
- *  ACT 5  BUTTON                                         ~7s   (6 beats)
- *    the chair, the party deferring, HP ???, GOOD 10/10
+ *  ACT 0  TITLE                                  ~2.5s  ( 3 beats,  1 set-up)
+ *    logo card over a held establishing wide, a dog at the water cooler
+ *  ACT 1  A NORMAL TUESDAY                       ~8.5s  ( 6 beats,  4 set-ups)
+ *    Marge's line item, Roop's water bowl, Dez's call, then FLOOR LEVEL:
+ *    something walks into a 28cm-high lens and sniffs it
+ *  ACT 2  THE ENCOUNTER                          ~9.0s  ( 9 beats,  5 set-ups)
+ *    bark / flash / shake / battle music / HUD / amber cursor /
+ *    "! TUESDAY APPEARED" -> Kiki has already named her, and made a badge
+ *  ACT 3  THE BATTLE MENU                       ~30.0s  (23 beats,  9 set-ups)
+ *    TALK  -> Brad misses; Dez puts her on a sales call, misses
+ *    FEED  -> she ate at nine; she is on the org chart (ceiling shot)
+ *    ADOPT -> Marge's per-head cost OVER Roop's denial, two boxes at once
+ *    RUN   -> TUESDAY USED ZOOMIES: 8.5s, one camera, no cuts, she leaves
+ *             frame twice and comes back
+ *  ACT 4  THE ONE CORRECT THING                  ~9.5s  ( 9 beats,  5 set-ups)
+ *    Brad says sit. She sits. Fanfare, 9999, and five boxes of credit at once
+ *  ACT 5  BUTTON                                 ~7.5s  ( 7 beats,  3 set-ups)
+ *    the chair, the party deferring to it, HP ???, GOOD 10/10, fade
  *  ---------------------------------------------------------------------------
- *  51 timed beats, 21 camera set-ups, longest hold = the 8.5s zoomies shot.
- *  ESTIMATE ~67s / MEASURED 63.6s (see the report at the bottom of this file).
+ *  57 timed beats / 27 camera set-ups / longest hold = the 8.5s zoomies shot.
+ *  ESTIMATED 62s of scene time, MEASURED 62.4s wall clock by tools/check.mjs.
  * ---------------------------------------------------------------------------
  *
  * @module episodes/ep3
@@ -42,30 +43,43 @@
 /** EP3's accent, per SPEC section 7. @type {string} */
 const ACCENT = '#c98a4b';
 
+/** Dialogue hold, tightened from the 750ms default to keep inside 70s. */
+const HOLD = 540;
+
 /**
- * Floor positions this episode needs that `office.marks` does not name.
- * Every one of them is clear of the desks, the cubicle partitions and the
- * row-A chairs — checked against the floor plan in `/js/sets/office.js`.
+ * Floor positions this episode needs that `office.marks` does not name. Every
+ * one is checked clear of the desks, the cubicle partitions at x=+-2.5 and the
+ * row-A chairs at z=-1.85 — see the floor plan in `/js/sets/office.js`.
  * @type {Object<string, number[]>}
  */
 const SPOT = {
-  /** The argument semicircle: five adults in a rough arc, all facing the dog. */
+  /* The argument semicircle: five adults in an arc, all facing the dog. */
   roop: [-2.80, 0, -0.70],
   kiki: [-1.55, 0, -1.10],
   brad: [-0.45, 0, -1.25],
   dez: [0.95, 0, -1.15],
   marge: [2.05, 0, -0.80],
 
-  /** Where the dog stands for most of the encounter — downstage of everyone. */
+  /** Where the dog stands for most of it — downstage of the whole company. */
   dogMark: [0.55, 0, 0.75],
   /** Where she first noses into the floor-level shot. */
   dogEnter: [2.55, 0, 1.30],
-  /** The chair the founder is about to lose, seat top at y=0.49. */
+  /** Poster only: downstage of everyone, broadside to the lens. */
+  posterMark: [0.60, 0, 0.90],
+  /** Downstage, past the lens: what the dog looks at when she looks at us. */
+  downstage: [1.40, 0, 3.60],
+  /** Where she is looking when she sits: past Brad, broadside to the camera. */
+  sitLook: [-1.20, 0, -0.20],
+
+  /** The chair the founder is about to lose. Seat top is at y=0.49. */
   chair: [0.02, 0.49, -1.85],
   /** Standing beside that chair, for the man who no longer has one. */
-  bradByChair: [-0.85, 0, -1.05],
+  bradByChair: [-0.95, 0, -1.00],
+  /** Act 5 only: the wings close in so all five fit the reverence shot. */
+  roopClose: [-2.10, 0, -0.55],
+  margeClose: [1.85, 0, -0.70],
 
-  /** Zoomies waypoints. The lane runs in front of the party, wall to wall. */
+  /** Zoomies waypoints. The lane runs downstage of the party, wall to wall. */
   zoomA: [-3.90, 0, 0.35],
   zoomB: [4.00, 0, 1.15],
   zoomC: [-2.60, 0, 0.15],
@@ -73,29 +87,41 @@ const SPOT = {
 };
 
 /**
- * Hand-built camera set-ups. `office.shots` covers the room; these cover the
- * dog, who is 62cm tall and therefore invisible to every camera in the set.
+ * Hand-built set-ups. `office.shots` covers the room beautifully but every
+ * camera in it is at human eye height, and this episode is mostly about
+ * something 62cm tall.
  * @type {Object<string, {pos:number[], look:number[], fov?:number}>}
  */
 const SHOT = {
-  /** Dez at his desk, shot from the gap between the two row-B desks. */
-  dezDesk: { pos: [0.0, 1.62, -1.55], look: [0.0, 1.22, -4.45], fov: 50 },
-  /** Marge at hers, from the clear floor east of the partition. */
-  margeDesk: { pos: [3.15, 1.62, -1.60], look: [3.30, 1.20, -4.50], fov: 50 },
-  /** Over Brad's shoulder, down at a dog who is not impressed. */
-  overBrad: { pos: [-0.95, 1.52, -1.90], look: [0.55, 0.50, 0.75], fov: 54 },
-  /** THE DOG'S POINT OF VIEW: nose height, looking up at five adults. */
-  dogPov: { pos: [0.55, 0.40, 0.58], look: [-0.30, 1.62, -1.30], fov: 62 },
+  /**
+   * THE BATTLE STANCE. Note the height: the HUD owns the bottom 40% of the
+   * frame, so any camera that has to see a 62cm dog at the same time has to
+   * sit at roughly her eye level and stay level. Every `battle*` set-up below
+   * obeys that, which is also why this episode looks the way it does.
+   */
+  battle: { pos: [0.10, 0.58, 3.20], look: [0.15, 0.58, -1.00], fov: 56 },
+  /** Same stance, swung left — favours Kiki, keeps the dog downstage right. */
+  battleLeft: { pos: [-2.30, 0.60, 2.50], look: [-0.30, 0.60, -1.00], fov: 52 },
+  /** Swung right — favours Dez and Marge, dog downstage left. */
+  battleRight: { pos: [2.70, 0.60, 2.30], look: [0.60, 0.60, -1.00], fov: 52 },
+  /** THE DOG'S POINT OF VIEW: over her ears, up at five enormous adults. */
+  dogPov: { pos: [0.68, 0.32, 1.75], look: [-0.30, 1.50, -1.25], fov: 60 },
   /** The long one. Low, wide, and she runs clean out of both sides of it. */
-  zoomies: { pos: [-2.20, 0.62, 3.90], look: [0.60, 0.85, -0.60], fov: 64 },
-  /** The party, from behind, facing the chair. Backs to us. FF7 to the bone. */
-  throne: { pos: [0.20, 1.50, 1.70], look: [0.05, 0.80, -1.85], fov: 50 },
-  /** Tighter on the chair itself. */
-  throneClose: { pos: [0.10, 1.05, 0.55], look: [0.02, 0.72, -1.85], fov: 46 },
+  zoomies: { pos: [0.00, 0.45, 3.10], look: [0.20, 0.50, -0.90], fov: 66 },
+  /** The party from behind, facing the chair. Backs to us. FF7 to the bone. */
+  throne: { pos: [0.20, 1.35, 2.15], look: [0.04, 0.82, -1.85], fov: 58 },
+  /** Past Brad's elbow and Dez's shoulder, at the new management. */
+  throneClose: { pos: [0.10, 0.62, 0.65], look: [0.02, 0.66, -1.85], fov: 46 },
+  /**
+   * The poster. Knee height and tilted just enough that the dog's topline,
+   * both ears and the tail sit clear against the carpet in the bottom band,
+   * with the argument stacked above her.
+   */
+  poster: { pos: [1.90, 0.85, 2.40], look: [-0.40, 1.15, -1.20], fov: 60 },
 };
 
 /**
- * The party roster, in HUD order. Stats are SPEC section 6.
+ * The party roster, in HUD order. Joke stats are SPEC section 6.
  * @returns {Array<Object>}
  */
 function partyRows() {
@@ -106,6 +132,52 @@ function partyRows() {
     { name: 'ROOP', hp: 31, maxHp: 31, mp: '402', limit: 0.18 },
     { name: 'MARGE', hp: 55, maxHp: 55, mp: '12', limit: 0.55 },
   ];
+}
+
+/**
+ * A clean single on one of the five. Everybody in the arc faces the dog, who
+ * is downstage, so a camera in front of them is always over open carpet.
+ * @param {Director} d
+ * @param {Actor} actor
+ * @param {number} angle degrees off world +Z
+ * @param {number} [dist=3.0]
+ * @param {Object} [o] extra `shotOn` options
+ * @returns {Object} a Shot
+ */
+function single(d, actor, angle, dist = 3.0, o = {}) {
+  return d.shotOn(actor, Object.assign({
+    absolute: true, angle, dist, height: 1.55, lookHeight: 1.40, fov: 48,
+  }, o));
+}
+
+/**
+ * Coverage of the dog, from the open floor downstage of her.
+ * @param {Director} d
+ * @param {Actor} dog
+ * @param {number} angle degrees off world +Z
+ * @param {number} dist
+ * @param {number} height camera height in metres
+ * @param {Object} [o]
+ * @returns {Object} a Shot
+ */
+function onDog(d, dog, angle, dist, height, o = {}) {
+  return d.shotOn(dog, Object.assign({
+    absolute: true, angle, dist, height, lookHeight: 0.42, fov: 52,
+  }, o));
+}
+
+/**
+ * Cut, and park the amber cursor only where the camera can actually see it.
+ * A target triangle clamped to the edge of frame, pointing at a dog who is
+ * two rooms of screen space away, is worse than no cursor at all.
+ * @param {Director} d
+ * @param {Object} shot a Shot, or the name of a registered one
+ * @param {Actor|null} [target]
+ * @returns {void}
+ */
+function cutTo(d, shot, target) {
+  d.cut(shot);
+  d.targetOn(target || null);
 }
 
 /**
@@ -124,8 +196,8 @@ function formTheArc(d, c) {
 }
 
 /**
- * One leg of the zoomies. `walk()` forces the `walk` pose, so the real pose
- * goes on immediately afterwards and rides the same tween.
+ * One leg of the zoomies. `walk()` forces the `walk` pose on the way out, so
+ * the real pose goes on immediately afterwards and rides the same tween.
  * @param {Director} d
  * @param {Actor} dog
  * @param {number[]} to
@@ -139,6 +211,24 @@ function dash(d, dog, to, ms) {
 }
 
 /**
+ * The command window. Same prompt, same four options, every time — the
+ * ceremony is the joke.
+ * @param {Director} d
+ * @param {number} pick
+ * @param {number} auto
+ * @returns {Promise<number>}
+ */
+function command(d, pick, auto) {
+  return d.menu({
+    prompt: 'WHAT DO WE DO',
+    options: ['TALK', 'FEED', 'ADOPT', 'RUN'],
+    style: 'battle',
+    pick,
+    auto,
+  });
+}
+
+/**
  * EP3.
  * @param {EpisodeCtx} ctx
  * @returns {Promise<void>}
@@ -149,14 +239,14 @@ async function run(ctx) {
 
   const dog = c.tuesday;
 
-  /* ===================================================== ACT 0 — TITLE === */
+  /* ====================================================== ACT 0 — TITLE == */
 
   d.hud(null);
   d.subtitle('');
   if (ctx.office && typeof ctx.office.focusRoom === 'function') ctx.office.focusRoom('bullpen');
 
   // Everyone at their station. Row A works facing the room; Roop faces his
-  // desk, which is the only relationship in his life that returns his calls.
+  // desk, the only relationship in his life that returns his calls.
   d.place(c.brad, 'deskBrad', 'bullpenCenter');
   d.place(c.dez, 'deskDez', 'bullpenCenter');
   d.place(c.marge, 'deskMarge', 'bullpenCenter');
@@ -173,104 +263,102 @@ async function run(ctx) {
 
   d.cut('establish');
   d.music('lobby');
-  await d.title({ logo: true, subtitle: 'EPISODE THREE — "TUESDAY"', ms: 1500 });
+  await d.title({ logo: true, subtitle: 'EPISODE THREE — "TUESDAY"', ms: 1200 });
 
-  /* ========================================== ACT 1 — A NORMAL TUESDAY === */
+  /* =========================================== ACT 1 — A NORMAL TUESDAY == */
 
-  // A held wide. Somewhere at frame right, small, something is sniffing a
-  // water cooler. Nobody in this building has noticed.
-  await d.beat(700);
+  // A held wide. Out at frame right, small, something is sniffing a water
+  // cooler. Nobody in this building has noticed.
+  await d.beat(400);
 
-  d.cut(SHOT.margeDesk);
+  d.cut(single(d, c.marge, 20, 3.0));
   d.face(c.marge, 'bullpenCenter');
-  await d.say(c.marge, 'Line item forty-one.\nSnacks.');
+  await d.say(c.marge, 'Line item forty-one.\nSnacks.', { hold: HOLD });
 
-  d.cut('deskCloseB');
-  d.anim(c.roop, 'type');
-  await d.say(c.roop, 'Who filled the water bowl\nby the copier?');
+  // He swivels to ask the room, which is the most social thing he does today.
+  d.cut('deskRowB');
+  d.face(c.roop, [-3.60, 0, -0.50]);
+  d.anim(c.roop, 'shrug');
+  await d.say(c.roop, 'Who filled the water bowl\nby the copier?', { hold: HOLD });
 
-  d.cut(SHOT.dezDesk);
+  d.cut('windowWall');
   d.anim(c.dez, 'talk');
-  await d.say(c.dez, 'Not me. I am on a call.');
+  await d.say(c.dez, 'Not me. I am on a call.', { hold: HOLD });
 
   // FLOOR LEVEL. The camera is 28cm off the carpet and a dog walks into it.
   d.cut('floorLevel');
   d.place(dog, SPOT.dogEnter, SPOT.dogMark);
-  await d.walk(dog, SPOT.dogMark, 1500);
+  await d.walk(dog, SPOT.dogMark, 1250);
   d.anim(dog, 'sniff');
-  d.face(dog, [2.2, 0, 2.6]);
-  await d.beat(750);
+  d.face(dog, SPOT.downstage);
+  await d.beat(500);
 
-  /* ========================================== ACT 2 — THE ENCOUNTER ====== */
+  /* ============================================= ACT 2 — THE ENCOUNTER === */
 
   d.sfx('bark');
   d.anim(dog, 'bark');
   d.shake(0.34, 460);
   d.music('chase');
-  await d.flash('#ffffff', 260);
+  await d.flash('#ffffff', 250);
 
   // The white frame covers the reposition: five people who were at their
   // desks are now standing in a semicircle, which is how offices work.
   formTheArc(d, c);
-  d.anim(c.brad, 'panic');
-  d.anim(c.dez, 'panic');
+  d.anim(c.brad, 'point');
+  d.anim(c.dez, 'shrug');
   d.anim(c.kiki, 'cheer');
   d.anim(c.roop, 'panic');
-  d.anim(c.marge, 'shrug');
+  d.anim(c.marge, 'point');
   d.anim(dog, 'idle');
-  d.face(dog, SPOT.brad);
-  d.cut(d.shotOn(dog, { dist: 2.9, height: 1.15, angle: 14, absolute: true, fov: 52 }));
+  d.face(dog, SPOT.downstage);
+  d.cut(onDog(d, dog, 14, 2.90, 1.15));
   d.hud(partyRows());
-  await d.beat(420);
+  await d.beat(300);
 
   d.targetOn(dog);
-  await d.encounter('! TUESDAY APPEARED', { ms: 1200 });
+  await d.encounter('! TUESDAY APPEARED', { ms: 950 });
 
-  d.cut(SHOT.overBrad);
-  d.anim(c.brad, 'point');
-  await d.say(c.brad, 'What is that.');
+  cutTo(d, single(d, c.brad, 10));
+  await d.say(c.brad, 'What is that.', { hold: HOLD });
 
-  d.cut(d.shotOn(c.kiki, { dist: 2.4, height: 1.5, angle: 22, fov: 50 }));
+  cutTo(d, SHOT.battleLeft, dog);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'That is Tuesday.');
+  await d.say(c.kiki, 'That is Tuesday.', { hold: HOLD });
 
-  d.cut(d.shotOn(c.brad, { dist: 2.5, height: 1.58, angle: -20, fov: 50 }));
-  await d.say(c.brad, 'Today is Thursday.');
+  cutTo(d, single(d, c.brad, 16, 2.8));
+  d.anim(c.brad, 'shrug');
+  await d.say(c.brad, 'Today is Thursday.', { hold: HOLD });
 
-  d.cut(d.shotOn(c.kiki, { dist: 2.6, height: 1.5, angle: 26, fov: 52 }));
-  await d.say(c.kiki, 'Her name is Tuesday.\nI made her a badge.');
+  cutTo(d, single(d, c.kiki, -26, 2.8));
+  d.anim(c.kiki, 'point');
+  await d.say(c.kiki, 'Her name is Tuesday.\nI made her a badge.', { hold: HOLD });
 
-  /* ========================================= ACT 3 — THE BATTLE MENU ===== */
+  /* ========================================== ACT 3 — THE BATTLE MENU ==== */
 
   /* ---- TALK ---- */
 
-  d.cut('bullpenLow');
-  d.anim(c.dez, 'point');
-  d.anim(c.marge, 'point');
+  cutTo(d, SHOT.battle, dog);
+  d.anim(c.brad, 'idle');
+  d.anim(c.kiki, 'idle');
   d.anim(c.roop, 'shrug');
-  await d.menu({
-    prompt: 'WHAT DO WE DO',
-    options: ['TALK', 'FEED', 'ADOPT', 'RUN'],
-    style: 'battle',
-    pick: 0,
-    auto: 1200,
-  });
+  await command(d, 0, 1050);
 
-  d.cut(SHOT.overBrad);
+  cutTo(d, onDog(d, dog, -34, 1.95, 0.62), dog);
+  d.face(dog, SPOT.brad);
   d.anim(c.brad, 'point');
-  await d.say(c.brad, 'Hey. Hey buddy. Hey.');
+  await d.say(c.brad, 'Hey. Hey buddy. Hey.', { hold: HOLD });
 
-  // The dog's reply. Routed as narration with a speaker so she gets her box
-  // and her voice without the rig throwing a bark over the top of it.
-  d.cut(SHOT.dogPov);
+  // The dog's reply. Routed as narration with a speaker and her own voice, so
+  // she gets the box without the rig throwing a bark over the top of it.
+  cutTo(d, SHOT.dogPov);
   await d.say(null, '......', {
-    speaker: 'TUESDAY', voice: 'tuesday', at: [200, 118], maxWidth: 120,
+    speaker: 'TUESDAY', voice: 'tuesday', at: [206, 112], maxWidth: 120, hold: HOLD,
   });
   await d.damageOn(c.brad, 'MISS');
 
-  d.cut(d.shotOn(c.dez, { dist: 2.4, height: 1.55, angle: 24, fov: 50 }));
+  cutTo(d, SHOT.battleRight, dog);
   d.anim(c.dez, 'talk');
-  await d.say(c.dez, 'Ron. Ron, say hi to Tuesday.');
+  await d.say(c.dez, 'Ron. Say hi to Tuesday.', { hold: HOLD });
 
   d.sfx('bark');
   d.anim(dog, 'bark');
@@ -279,59 +367,50 @@ async function run(ctx) {
 
   /* ---- FEED ---- */
 
-  d.cut('bullpenLow');
+  cutTo(d, SHOT.battle, dog);
   d.anim(c.dez, 'slump');
-  await d.menu({
-    prompt: 'WHAT DO WE DO',
-    options: ['TALK', 'FEED', 'ADOPT', 'RUN'],
-    style: 'battle',
-    pick: 1,
-    auto: 1200,
-  });
+  d.anim(dog, 'idle');
+  await command(d, 1, 1050);
 
-  d.cut(d.shotOn(c.kiki, { dist: 2.3, height: 1.48, angle: 20, fov: 50 }));
+  cutTo(d, SHOT.battleLeft, dog);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'She has eaten. I fed her\nat nine.');
+  await d.say(c.kiki, 'She has eaten. I fed her\nat nine.', { hold: HOLD });
 
-  d.cut(d.shotOn(c.brad, { dist: 2.6, height: 1.6, angle: -22, fov: 50 }));
+  cutTo(d, single(d, c.brad, 12, 2.8));
   d.anim(c.brad, 'panic');
-  await d.say(c.brad, 'You have had her\nsince NINE?');
+  await d.say(c.brad, 'You have had her\nsince NINE?', { hold: HOLD });
 
   // CEILING SHOT — up past the party at the drop tiles. From down here the
   // org chart is a very tall thing.
-  d.cut('ceiling');
+  cutTo(d, 'ceiling');
   d.anim(c.kiki, 'point');
-  await d.say(c.kiki, 'She is on the org chart.');
+  d.anim(c.brad, 'slump');
+  await d.say(c.kiki, 'She is on the org chart.', { hold: HOLD });
 
-  d.cut(d.shotOn(c.roop, { dist: 2.2, height: 1.5, angle: 26, fov: 50 }));
+  cutTo(d, single(d, c.roop, -8, 3.2));
   d.anim(c.roop, 'panic');
   d.emote(c.roop, 'sweat');
-  await d.say(c.roop, 'HKKTCH.');
+  await d.say(c.roop, 'HKKTCH.', { hold: HOLD });
 
   /* ---- ADOPT ---- */
 
-  d.cut('bullpenLow');
+  cutTo(d, SHOT.battle, dog);
   d.anim(c.roop, 'idle');
-  await d.menu({
-    prompt: 'WHAT DO WE DO',
-    options: ['TALK', 'FEED', 'ADOPT', 'RUN'],
-    style: 'battle',
-    pick: 2,
-    auto: 1300,
-  });
+  d.anim(c.brad, 'idle');
+  d.anim(dog, 'sniff');
+  await command(d, 2, 1100);
 
   // TWO BOXES AT ONCE (ref 04): the arithmetic and the denial, talking over
-  // each other. Distinct ids + keep:true or the second one eats the first.
-  d.cut('bullpenWide');
+  // each other. Distinct ids and keep:true, or the second one eats the first.
+  cutTo(d, SHOT.battleRight, dog);
   d.anim(c.marge, 'point');
   d.anim(c.roop, 'shrug');
-  d.anim(dog, 'sniff');
   const arithmetic = d.say(c.marge, 'Fully loaded, per head,\nshe is $41.20 a day.', {
-    id: 'marge-cost', keep: true, at: [268, 60], maxWidth: 152,
+    id: 'marge-cost', keep: true, at: [268, 60], maxWidth: 152, hold: HOLD,
   });
-  await d.beat(280);
+  await d.beat(260);
   const denial = d.say(c.roop, 'I am not allergic.', {
-    id: 'roop-denial', keep: true, at: [104, 120], maxWidth: 132,
+    id: 'roop-denial', keep: true, at: [104, 120], maxWidth: 132, hold: HOLD,
   });
   await d.all(arithmetic, denial);
 
@@ -339,129 +418,128 @@ async function run(ctx) {
   d.updateHud({ BRAD: { hp: 26 } });
   d.closeBoxes(['marge-cost', 'roop-denial']);
 
-  d.cut(d.shotOn(c.roop, { dist: 2.1, height: 1.48, angle: 24, fov: 50 }));
+  cutTo(d, single(d, c.roop, -6, 3.0));
   d.anim(c.roop, 'panic');
   d.emote(c.roop, 'sweat');
-  await d.say(c.roop, 'HKKTCH. Dust.');
+  await d.say(c.roop, 'HKKTCH. Dust.', { hold: HOLD });
   d.updateHud({ ROOP: { hp: 19 } });
   await d.damageOn(c.roop, 'MISS');
 
   /* ---- RUN ---- */
 
-  d.cut('bullpenLow');
+  cutTo(d, SHOT.battle, dog);
   d.anim(c.roop, 'idle');
-  await d.menu({
-    prompt: 'WHAT DO WE DO',
-    options: ['TALK', 'FEED', 'ADOPT', 'RUN'],
-    style: 'battle',
-    pick: 3,
-    auto: 1300,
-  });
+  await command(d, 3, 1100);
 
-  /* ------------------------------------------------------------------ *
-   * THE ZOOMIES. ONE SHOT. NO CUTS. She goes off the left of frame and
-   * comes back, twice, while five adults fail to finish a sentence.
-   * ------------------------------------------------------------------ */
+  /* -------------------------------------------------------------------- *
+   * THE ZOOMIES. ONE SHOT. NO CUTS. She leaves frame left, comes back,
+   * leaves frame right, comes back, while five adults fail to finish a
+   * sentence about her.
+   * -------------------------------------------------------------------- */
 
-  d.cut(SHOT.zoomies);
+  // Cursor off: she stopped being a target the moment she started enjoying
+  // herself, and nobody in this room is going to admit they noticed.
+  cutTo(d, SHOT.zoomies);
   d.anim(c.brad, 'shrug');
   d.anim(c.dez, 'point');
   d.anim(c.marge, 'type');
   d.anim(c.kiki, 'cheer');
   d.anim(c.roop, 'panic');
   d.sfx('bark');
-  await d.toast('TUESDAY USED ZOOMIES', 1100);
+  await d.toast('TUESDAY USED ZOOMIES', 900);
 
-  await dash(d, dog, SPOT.zoomA, 1500);
+  await dash(d, dog, SPOT.zoomA, 1300);
   await d.all(
-    dash(d, dog, SPOT.zoomB, 2150),
-    d.say(c.kiki, 'Zoomies.'),
+    dash(d, dog, SPOT.zoomB, 1850),
+    d.say(c.kiki, 'Zoomies.', { hold: HOLD }),
   );
   await d.all(
-    dash(d, dog, SPOT.zoomC, 1850),
-    d.say(c.marge, 'That is four laps.'),
+    dash(d, dog, SPOT.zoomC, 1600),
+    d.say(c.marge, 'That is four laps.', { hold: HOLD }),
   );
-  await dash(d, dog, SPOT.zoomD, 1150);
+  await dash(d, dog, SPOT.zoomD, 950);
   d.anim(dog, 'shake');
   d.sfx('bark');
-  await d.beat(950);
+  await d.beat(700);
   d.anim(dog, 'idle');
   d.face(dog, SPOT.brad);
-  await d.beat(450);
+  await d.beat(300);
 
-  /* ================================ ACT 4 — THE ONE CORRECT THING ======= */
+  /* ================================= ACT 4 — THE ONE CORRECT THING ====== */
 
-  d.cut(d.shotOn(c.brad, { dist: 2.4, height: 1.3, angle: -18, fov: 50 }));
+  cutTo(d, single(d, c.brad, 8, 2.6, { height: 1.30, lookHeight: 1.45 }));
   d.anim(c.brad, 'slump');
-  await d.say(c.brad, 'Sit.');
+  await d.say(c.brad, 'Sit.', { hold: HOLD });
 
-  d.cut(SHOT.overBrad);
-  await d.beat(800);
+  // Profile, at her eye level. A sitting dog seen side-on is the single most
+  // legible shape in this whole show; seen from behind she is a brown box.
+  d.face(dog, SPOT.sitLook);
+  cutTo(d, onDog(d, dog, -63, 2.10, 0.80, { fov: 52 }));
+  await d.beat(620);
 
   d.anim(dog, 'sit');
   d.sfx('fanfare');
   d.music('victory');
-  await d.beat(900);
+  await d.beat(750);
 
+  cutTo(d, SHOT.battle);
+  d.anim(c.brad, 'panic');
   await d.damageOn(c.brad, '9999', { big: true });
 
-  d.cut(d.shotOn(c.brad, { dist: 2.3, height: 1.58, angle: -16, fov: 50 }));
+  cutTo(d, single(d, c.brad, 14, 2.7));
   d.anim(c.brad, 'idle');
-  await d.say(c.brad, '......');
-  await d.say(c.brad, 'Nothing in this building\nhas ever listened to me.');
+  await d.say(c.brad, '......', { hold: HOLD });
+  await d.say(c.brad, 'Nothing in this building\nhas ever listened to me.', { hold: HOLD });
 
   // THE CHORUS. Five boxes, five ids, all kept, all at once, hand-placed so
   // they tile the frame above the HUD instead of dodging each other.
-  d.cut('bullpenWide');
+  cutTo(d, SHOT.battle);
   d.anim(c.kiki, 'cheer');
   d.anim(c.dez, 'point');
   d.anim(c.marge, 'point');
   d.anim(c.roop, 'shrug');
-  d.anim(c.brad, 'panic');
+  d.anim(c.brad, 'point');
 
   const chorus = [
-    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 118 }),
+    d.say(c.kiki, 'Team effort.', { id: 'cr-kiki', keep: true, at: [62, 52], maxWidth: 118, hold: 460 }),
   ];
-  await d.beat(170);
-  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 118 }));
-  await d.beat(170);
-  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 118 }));
-  await d.beat(170);
-  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 118 }));
-  await d.beat(170);
-  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118 }));
+  await d.beat(150);
+  chorus.push(d.say(c.brad, 'I said sit.', { id: 'cr-brad', keep: true, at: [192, 52], maxWidth: 118, hold: 460 }));
+  await d.beat(150);
+  chorus.push(d.say(c.dez, 'I closed it.', { id: 'cr-dez', keep: true, at: [322, 52], maxWidth: 118, hold: 460 }));
+  await d.beat(150);
+  chorus.push(d.say(c.roop, 'I allowed it', { id: 'cr-roop', keep: true, at: [125, 98], maxWidth: 118, hold: 460 }));
+  await d.beat(150);
+  chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118, hold: 460 }));
   await d.all(chorus);
-  await d.beat(420);
+  await d.beat(260);
   d.closeBoxes(null);
 
-  /* =============================================== ACT 5 — THE BUTTON === */
+  /* ================================================ ACT 5 — THE BUTTON == */
 
   d.music('lobby');
   d.place(dog, SPOT.chair, SPOT.brad);
   d.anim(dog, 'sit');
   d.place(c.brad, SPOT.bradByChair, SPOT.chair);
-  d.anim(c.brad, 'idle');
-  d.anim(c.kiki, 'idle');
-  d.anim(c.dez, 'idle');
-  d.anim(c.marge, 'idle');
-  d.anim(c.roop, 'idle');
+  d.place(c.roop, SPOT.roopClose, SPOT.chair);
+  d.place(c.marge, SPOT.margeClose, SPOT.chair);
+  for (const a of [c.brad, c.dez, c.kiki, c.roop, c.marge]) d.anim(a, 'idle');
   d.face(c.kiki, SPOT.chair);
   d.face(c.dez, SPOT.chair);
   d.face(c.marge, SPOT.chair);
   d.face(c.roop, SPOT.chair);
 
   d.cut(SHOT.throneClose);
-  await d.beat(700);
+  await d.beat(520);
 
-  d.cut(d.shotOn(c.brad, { dist: 2.2, height: 1.55, angle: 34, fov: 50 }));
-  await d.say(c.brad, '......that is my chair.');
+  d.cut(single(d, c.brad, 30, 2.6));
+  await d.say(c.brad, '......that is my chair.', { hold: HOLD });
 
   d.cut(SHOT.throne);
   d.anim(c.kiki, 'talk');
-  await d.say(c.kiki, 'It is her chair now.');
+  await d.say(c.kiki, 'It is her chair now.', { hold: HOLD });
 
-  // She is not the enemy any more. Cursor off, roster amended, founder cut.
-  d.targetOn(null);
+  // Roster amended. The founder does not make the cut.
   d.hud([
     { name: 'TUESDAY', hp: '???', mp: '10/10', limit: 1 },
     { name: 'DEZ', hp: 88, maxHp: 88, mp: '4', limit: 0.4 },
@@ -471,22 +549,21 @@ async function run(ctx) {
   ]);
   d.subtitle('TUESDAY  —  GOOD 10/10');
   d.sfx('chime');
-  await d.beat(700);
+  await d.beat(520);
 
   d.anim(c.marge, 'talk');
-  await d.say(c.marge, 'Motion carries.');
-
+  await d.say(c.marge, 'Motion carries.', { hold: HOLD });
   d.anim(c.marge, 'idle');
   d.anim(c.kiki, 'idle');
-  await d.beat(1300);
+  await d.beat(800);
 
   d.music(null);
-  await d.fadeOut(900);
+  await d.fadeOut(700);
 }
 
 /**
- * The thumbnail: floor level, the dog downstage and in focus, five humans
- * behind her having an argument she is not part of.
+ * The thumbnail: floor level, the dog downstage and looking straight down the
+ * lens, five humans behind her having an argument she is not part of.
  * @param {EpisodeCtx} ctx
  * @returns {void}
  */
@@ -496,18 +573,18 @@ function poster(ctx) {
   if (ctx.office && typeof ctx.office.focusRoom === 'function') ctx.office.focusRoom('bullpen');
 
   formTheArc(d, c);
-  d.place(c.tuesday, SPOT.dogMark, [2.2, 0, 2.6]);
+  // Two metres off the lens and three-quartered, so the floppy ear, the up
+  // ear and the metronome tail all read. Head-on, a dog is a brown rectangle.
+  d.place(c.tuesday, SPOT.posterMark, [3.60, 0, 1.60]);
 
   d.anim(c.tuesday, 'idle');
   d.anim(c.brad, 'point');
-  d.anim(c.dez, 'talk');
+  d.anim(c.dez, 'shrug');
   d.anim(c.kiki, 'cheer');
-  d.anim(c.roop, 'shrug');
+  d.anim(c.roop, 'panic');
   d.anim(c.marge, 'point');
 
-  d.hud(partyRows());
-  d.cut('floorLevel');
-  d.targetOn(c.tuesday);
+  d.cut(SHOT.poster);
 }
 
 export default /** @type {Object} */ ({
@@ -515,7 +592,7 @@ export default /** @type {Object} */ ({
   number: 3,
   title: 'TUESDAY',
   logline: 'A dog is in the office. Nobody agrees what to do.',
-  runtime: '1:04',
+  runtime: '1:02',
   starring: ['tuesday', 'kiki', 'brad', 'dez', 'roop', 'marge'],
   accent: ACCENT,
   run,

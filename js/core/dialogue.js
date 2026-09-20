@@ -861,9 +861,13 @@ export function createDialogue(host) {
    */
   const placeBox = (o, w, h) => {
     const m = 6;
+    // Clamp against bottomLimit(), not the raw screen edge: when the battle HUD
+    // is up it owns the bottom of the screen. This has to live in clamp() so it
+    // covers the `at` path too — a box anchored to a low actor would otherwise
+    // be placed straight on top of the HUD.
     const clamp = (x, y) => [
       Math.round(Math.max(2, Math.min(W - 2 - w, x))),
-      Math.round(Math.max(2, Math.min(H - 2 - h, y)))
+      Math.round(Math.max(2, Math.min(bottomLimit() - h, y)))
     ];
     /** @param {number} x @param {number} y @returns {[number,number]} */
     const dodge = (x, y) => {
@@ -887,7 +891,8 @@ export function createDialogue(host) {
     }
     let anchor = o.anchor || (o.pos === 'top' ? 'tm' : 'bm');
     const slot = (a) => {
-      const bot = bottomLimit() - h;
+      const bot = bottomLimit() - h; // same bound clamp() applies
+
       const xs = { l: m, m: (W - w) / 2, r: W - m - w };
       const ys = { t: m, m: (H - h) / 2 - 8, b: bot };
       return clamp(xs[a[1]], ys[a[0]]);
@@ -1682,7 +1687,15 @@ export function createDialogue(host) {
     h: 0,
     y: H,
     stop: () => {},
-    acc: 0
+    acc: 0,
+    /** Offscreen cache of everything in the HUD that does not move per frame. */
+    cache: /** @type {HTMLCanvasElement|null} */ (null),
+    cacheCtx: /** @type {CanvasRenderingContext2D|null} */ (null),
+    /** Geometry of the live TIME bars, recorded by the static pass. */
+    timeGeom: /** @type {{x:number,y0:number,w:number,rowH:number}|null} */ (null),
+    /** Quantised TIME-bar state of the last paint, so still bars cost nothing. */
+    step: NaN,
+    dirty: true
   };
 
   /** @param {string} s @returns {number} 0..1, stable per name */
@@ -1695,10 +1708,27 @@ export function createDialogue(host) {
     return ((v >>> 0) % 1000) / 1000;
   };
 
-  const paintHud = () => {
+  /**
+   * Repaints everything in the HUD that does NOT move every frame — panels,
+   * headers, names, HP, MP, barrier and LIMIT — into an offscreen cache.
+   *
+   * Only the TIME bars advance per tick. Redrawing the whole HUD at 20Hz meant
+   * re-emitting every glyph as fillRects each time, which measured ~17ms/frame
+   * against SwiftShader and collapsed the frame rate on any episode that keeps
+   * the HUD up. Everything static is cached here and blitted instead.
+   * @returns {void}
+   */
+  const paintHudStatic = () => {
     if (!hud.rows || !hud.surf) return;
-    const ctx = hud.surf.ctx;
     const h = hud.h;
+    if (!hud.cache || hud.cache.width !== W || hud.cache.height !== Math.max(1, Math.round(h))) {
+      hud.cache = document.createElement('canvas');
+      hud.cache.width = W;
+      hud.cache.height = Math.max(1, Math.round(h));
+      hud.cacheCtx = hud.cache.getContext('2d');
+      hud.cacheCtx.imageSmoothingEnabled = false;
+    }
+    const ctx = hud.cacheCtx;
     ctx.clearRect(0, 0, W, h);
     ctx.drawImage(hud.bgL, HUD_LX, 0);
     ctx.drawImage(hud.bgR, HUD_RX, 0);
@@ -1755,8 +1785,26 @@ export function createDialogue(host) {
       drawText(ctx, mpText, rx + MP_X + MP_W - textW(mpText), ty, { color: COL_TEXT });
 
       gauge(ctx, rx + LIM_X, ry + 2, BAR_W, 8, r.limit, COL_LIMIT);
-      gauge(ctx, rx + TIM_X, ry + 2, BAR_W, 8, r._time, COL_TIME);
     }
+    hud.timeGeom = { x: rx + TIM_X, y0: top + 2, w: BAR_W, rowH: HUD_ROW };
+    hud.dirty = true;
+  };
+
+  /**
+   * Blits the cached static HUD and draws only the live TIME bars over it.
+   * @returns {void}
+   */
+  const paintHud = () => {
+    if (!hud.rows || !hud.surf || !hud.cache) return;
+    const ctx = hud.surf.ctx;
+    ctx.clearRect(0, 0, W, hud.h);
+    ctx.drawImage(hud.cache, 0, 0);
+    const g = hud.timeGeom;
+    if (!g) return;
+    for (let i = 0; i < hud.rows.length; i++) {
+      gauge(ctx, g.x, g.y0 + i * g.rowH, g.w, 8, hud.rows[i]._time, COL_TIME);
+    }
+    hud.dirty = false;
   };
 
   /**
@@ -1792,6 +1840,9 @@ export function createDialogue(host) {
     hud.surf = surface(lHud, W, hud.h);
     hud.surf.move(0, hud.y);
     hud.acc = 0;
+    hud.cache = null;
+    hud.step = NaN;
+    paintHudStatic();
     paintHud();
     reflowSubtitle();
 
@@ -1806,8 +1857,11 @@ export function createDialogue(host) {
         r._time += r._rate * dt;
         if (r._time >= 1) { r._time = 1; r._wait = 0.45 + hashUnit(r.name) * 0.9; }
       }
-      hud.acc += dt;
-      if (hud.acc >= 0.05) { hud.acc = 0; paintHud(); }
+      // The bars are 38px wide, so only a change of a whole pixel is visible.
+      // Without this the HUD repaints 20x/second to show nothing new.
+      let step = 0;
+      for (const r of hud.rows) step = step * 41 + Math.round(r._time * 38);
+      if (step !== hud.step || hud.dirty) { hud.step = step; paintHud(); }
     });
   };
 
@@ -1832,6 +1886,7 @@ export function createDialogue(host) {
       if (up.barrier !== undefined) row.barrier = up.barrier;
       if (up.time !== undefined) { row._time = up.time; row._wait = 0; }
     }
+    paintHudStatic();
     paintHud();
   };
 

@@ -110,12 +110,23 @@
   </div>
 </main>
 
+<div class="speedbar" id="speedbar" role="group" aria-label="Reading speed">
+  <span class="speedbar-label" id="speed-label">Reading speed</span>
+  <button class="speedbtn" id="c-slower" type="button" aria-describedby="speed-label"
+          aria-label="Slower">&minus;</button>
+  <output class="speedval" id="c-speed" for="c-slower c-faster">1&times;</output>
+  <button class="speedbtn" id="c-faster" type="button" aria-describedby="speed-label"
+          aria-label="Faster">+</button>
+  <span class="speedbar-note">Dialogue holds scale with the length of each line.</span>
+</div>
+
 <footer class="w-foot">
   <p class="w-log" id="w-log"></p>
   <ul class="legend">
     <li><kbd>Space</kbd>Play / advance</li>
     <li><kbd>M</kbd>Mute</li>
     <li><kbd>R</kbd>Replay</li>
+    <li><kbd>[</kbd><kbd>]</kbd>Speed</li>
     <li><kbd>Esc</kbd>Back</li>
   </ul>
 </footer>

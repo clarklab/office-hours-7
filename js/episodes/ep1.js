@@ -22,7 +22,9 @@
  *   the standup .....  slab + Brad + menu + 4 overlapping lines .. ~15s
  *   button ..........  optimism + silence + the number + fade .... ~6s
  *   ------------------------------------------------------------------
- *   MEASURED 58.6s end to end (tools/check.mjs --ep=ep1), target 55-70s.
+ *   MEASURED at the authored pace by tools/check.mjs --ep=ep1; see the runtime
+ *   target in that harness. Per-line cps/hold below are RELATIVE comic intent —
+ *   dialogue.js guarantees each line a readable minimum for its length.
  *   Repeat runs land between 56s and 65s: the dialogue layer types and holds
  *   on real time while the Director waits on stage time, so a machine having
  *   a bad afternoon stretches the waits and not the typing. Both ends are

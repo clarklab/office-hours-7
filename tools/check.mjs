@@ -77,9 +77,18 @@ const DEFAULT_OUT = '/tmp/oh7-check';
 /** Playback speed used by `--fast`. The engine's dt clamp makes >3 pointless. */
 const FAST_SPEED = 3;
 
-/** Episodes are specced at 55-70s of wall clock at normal speed. */
-const TARGET_MIN_S = 55;
-const TARGET_MAX_S = 70;
+/**
+ * Episodes are specced at 95-150s of wall clock at normal speed.
+ *
+ * This was 55-70s until the dialogue holds were made proportional to the length
+ * of each line. That roughly doubled every episode on purpose: the boxes were
+ * timed to be *reachable* rather than comfortably readable, and a long line got
+ * exactly as long to be read as a three-word one. Viewers can take the pace
+ * back down with the speed control, which does not affect this measurement —
+ * the harness runs at the authored rate.
+ */
+const TARGET_MIN_S = 95;
+const TARGET_MAX_S = 150;
 
 /**
  * Frame-time thresholds, milliseconds. Past these the show is not watchable.

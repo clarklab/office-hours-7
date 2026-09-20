@@ -2,7 +2,7 @@
 _A PS1-era 3D comedy-shorts show. Read this in full before writing code._
 
 ## 0. What we are building
-A static website hosting three ~60-second "episodes" of **OFFICE HOURS VII**. Each episode is a **live Three.js
+A static website hosting three short "episodes" (~2 minutes each) of **OFFICE HOURS VII**. Each episode is a **live Three.js
 scene**, not a video: pressing play runs a directed cutscene with camera cuts, character
 animation, FF7-style dialogue boxes, and gibberish voice synthesis.
 
@@ -250,8 +250,9 @@ export function createDialogue(host)
  * @property {string} text           may contain \n for explicit line breaks
  * @property {import('./audio.js').VoiceId} [voice]
  * @property {string} [color]        CSS color for the name plate accent
- * @property {number} [cps=34]       characters per second
- * @property {number} [hold=750]     ms to hold after the text completes
+ * @property {number} [cps=22]       characters per second, as authored
+ * @property {number} [hold]         ms after the text completes; default scales with length
+ * @property {number} [speed=1]      playback rate; scales typing and hold together
  * @property {'bottom'|'top'} [pos='bottom']
  * @property {boolean} [auto=true]   auto-advance after hold (episodes run unattended)
  */
@@ -460,8 +461,16 @@ export default /** @type {EpisodeDef} */ ({ ... })
 ```
 - The player builds the stage, office, and the full cast, positions nothing, then calls
   `run(ctx)`. The episode is responsible for placing actors and driving everything.
-- `run` must complete in **55-70 seconds** with `auto:true` dialogue. Count it: at 34 cps a
-  30-character line is ~0.9s + 0.75s hold. Budget ~30-40 dialogue beats max.
+- `run` must complete in **95-155 seconds** with `auto:true` dialogue. Budget ~30-40
+  dialogue beats max.
+- **Do not tune `cps`/`hold` to hit a runtime.** Every line is guaranteed a minimum time
+  on screen proportional to its length (`readableMs()` in `dialogue.js`: a 1.5s floor plus
+  one second per 12 characters), so a line authored at `cps: 46, hold: 330` is still held
+  long enough to be read. Author those two numbers for *relative* comic intent — this beat
+  snappier than that one — and let the floor set the absolute pace. An authored hold that
+  is already longer than the floor is kept, so a deliberate silence still works.
+- Viewers can rescale the whole thing with the speed control under the player (0.6x-2x).
+  That is applied in `dialogue.js` and the stage clock, not by the episode.
 - `run` must be **cancellation-safe**: every await goes through the Director, which
   short-circuits after `d.cancel()`.
 - `poster(ctx)` sets up a good-looking frozen frame for the thumbnail screenshot.

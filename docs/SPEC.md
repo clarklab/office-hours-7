@@ -221,6 +221,7 @@ Implementation notes for AUDIO agent:
 - Everything must no-op gracefully if `initAudio()` was never called or audio is muted.
 
 ### 4.4 `/js/core/dialogue.js` + `/css/dialogue.css` — FF7 dialogue UI
+> **READ §10 FIRST — it supersedes the visual notes below and adds required API.**
 ```js
 /**
  * @param {HTMLElement} host  a positioned container sized to the 384x216 design space
@@ -565,3 +566,110 @@ node --input-type=module -e "import('file:///home/user/office-hours-7/js/core/au
 (Modules that import `three` will fail under bare node — that is expected; those must be
 checked in the browser instead. Do not add a node shim for the bare `three` specifier;
 `tools/check.mjs` drives a real browser.)
+
+---
+
+# 10. ART DIRECTION — REFERENCE PASS
+**This section SUPERSEDES the visual requirements in §4.4 where they disagree.**
+Four real FF7 screenshots are committed at `/docs/ref/`. **Open them with the Read tool
+before you write any visual code.** They are the ground truth, not this prose.
+
+- `docs/ref/01-battle-hud.webp` — battle UI, damage numbers, target cursor, spell glow
+- `docs/ref/02-field-dialogue.webp` — the field dialogue box (Aeris on the train)
+- `docs/ref/03-field-models.webp` — field/cutscene character models close up
+- `docs/ref/04-two-boxes.webp` — two dialogue boxes on screen simultaneously
+
+## 10.1 The dialogue box — corrected
+Looking at refs 02 and 04, the real thing is:
+- **The speaker's name is the FIRST LINE OF TEXT INSIDE THE BOX**, flush left, plain white,
+  no colored plate, no separator rule. The spoken line follows on the next line(s),
+  **indented by one space and wrapped in full-width quotes `"` / `"`** (U+201C / U+201D).
+  There is NO separate name plate. Delete that idea.
+- **Border**: a ~2px **light periwinkle/white** (`#dfe6ff`-ish) rounded rectangle outline,
+  corner radius ~4px at the virtual resolution, drawn OUTSIDE a 1px dark inset.
+  It is a crisp hard line — no glow, no shadow, no blur.
+- **Fill**: a gradient that is a **lighter steel blue at the TOP** (`#2b4fa8`) falling to
+  **near-black navy at the BOTTOM** (`#060b2a`), about **88% opaque** — you can see the
+  scene faintly through it. The gradient runs top→bottom.
+- **The box is sized to its content and positioned near the speaker**, NOT stretched across
+  the bottom. Min width ~90px, max ~230px at 384x216. Typical box is 3 lines tall.
+- **Two or more boxes can be on screen at once** (ref 04). This is a core comedy device for
+  EP1's overlapping non-sequiturs and EP3's everyone-talking-at-once. Support `keep: true`.
+- Text: white, hard 1px black offset shadow, ~8px monospace at virtual scale, generous
+  line-height. Heavy use of `......` ellipses is period-correct and funny.
+- Advance cursor: small white/periwinkle triangle at the bottom-right INSIDE the border,
+  blinking, only after the line is fully revealed.
+- Characters reveal one at a time with a voice blip; the box does NOT resize while typing —
+  measure the final text and size the box up front.
+
+## 10.2 The battle HUD — new, required
+Ref 01. Two adjoining boxes across the bottom, same border/gradient treatment:
+- **Left box**: header row `NAME` / `BARRIER` in small pale blue-grey caps, then one row per
+  party member: name in white, and an empty grey gauge on the right.
+- **Right box**: header row `HP` `MP` `LIMIT` `TIME`, then per member:
+  `7509/9999` style HP (white, with a thin white underline under the max), `644` MP,
+  a **pink/magenta LIMIT bar**, and a **peach/orange TIME bar** (animate the TIME bars
+  filling at different rates — it's free motion and instantly reads as FF7).
+- Numbers use the same pixel monospace, right-aligned.
+This HUD is used in EP3 (the dog encounter) and EP2 (the budget "battle"). It must be
+show/hide-able and its values must be settable so jokes can land (`HP 11/11 DAYS`).
+
+## 10.3 Damage numbers, cursor, effects — new, required
+- `damage()`: big white numerals with a hard black outline that pop up over a target,
+  rise ~12px and fade over ~900ms. Also supports the word `MISS` (ref 01).
+  Comedy use: Marge's burn number as damage over the company, `MISS` over Dez's cold call.
+- `targetCursor()`: the **yellow/amber downward triangle** hovering and bobbing above the
+  currently targeted actor (ref 01).
+- `encounter()`: the `! TUESDAY APPEARED` banner — a horizontal swipe-in slab.
+- Spell-ish flourishes (ref 01) are additive-blended billboard quads with nearest-filtered
+  procedural textures: a lightning bolt, a purple burst ring, rising yellow-green grass
+  streaks. Keep them cheap and only where a joke needs punctuation.
+
+## 10.4 Character modelling — corrected from ref 03
+The FF7 field/cutscene models are **blockier than you think**:
+- **Hands are MITTENS** — a single rounded box per hand. No fingers, ever.
+- **Limbs are tapered boxes**, upper and lower arm are separate chunks with a visible
+  seam at the joint. Same for legs. Joints do not deform; they just rotate and the gap
+  is accepted (and charming).
+- **Hair is angular polygon chunks**, not a smooth cap — a few big faceted wedges.
+  Brad's spike, Dez's ponytail, Kiki's round mass, Marge's bun should each be built from
+  2-6 chunky faceted pieces.
+- **Faces are flat painted textures on a slightly-tapered head box** — large simple eyes,
+  a dark brow, a minimal mouth. Not geometry. The nose is at most one shaded polygon.
+  Eyes should be BIG and simple; that's what reads at 384x216.
+- Proportions: heads are large (roughly 1/5.5 of total height), torsos are simple slabs,
+  shoulders are wide relative to hips.
+- Palette: desaturated, slightly muddy, low-contrast — see ref 03's mauves, dusty browns
+  and greys. Avoid pure saturated primaries on the models; save the accent colors for the
+  UI. Our office is fluorescent-lit beige-and-teal corporate, which is period-perfect.
+
+## 10.5 Scene / lighting notes from the refs
+- Dark, high-contrast, heavy black. Ref 01's ground is nearly black with bright additive
+  effects on top. Our office is brighter but must keep crushed blacks and a green-ish
+  fluorescent cast in the shadows.
+- Texture warp and vertex wobble should be clearly visible on the floor and desks —
+  don't dial `jitter` down below 0.8 on large flat surfaces.
+- Backgrounds in FF7 fields are pre-rendered stills. Emulate this for the window view:
+  a flat, slightly painterly canvas-drawn cityscape on a large quad behind the windows.
+
+## 10.6 Extra dialogue API (additive to §4.4 — DIALOGUE agent must implement)
+```js
+/** @typedef {Object} SayOpts   ...as §4.4, plus: */
+/** @property {boolean} [keep=false]   leave this box on screen when the next say() runs */
+/** @property {'auto'|'tl'|'tm'|'tr'|'ml'|'mr'|'bl'|'bm'|'br'} [anchor='bm'] */
+/** @property {[number,number]} [at]   explicit x,y in the 384x216 design space (overrides anchor) */
+/** @property {number} [maxWidth=230] */
+
+/** @property {(ids: string[]|null) => void} closeBoxes   // null = close all kept boxes */
+
+/** @typedef {{name:string, hp:number, maxHp:number, mp?:number|string, limit?:number, time?:number}} PartyRow */
+/** @property {(rows: PartyRow[]|null) => void} battleHud   // null hides it */
+/** @property {(patch: Object<string, Partial<PartyRow>>) => void} updateHud */
+/** @property {(text:string, o?:{at?:[number,number], color?:string, big?:boolean}) => Promise<void>} damage */
+/** @property {(pos: [number,number]|null) => void} targetCursor   // screen-space; Director projects a 3D actor */
+/** @property {(text:string, o?:{ms?:number}) => Promise<void>} encounter */
+/** @property {(o:{prompt?:string, options:string[], auto?:number, pick?:number, style?:'menu'|'battle'}) => Promise<number>} menu */
+```
+The Director gains: `d.targetOn(actor|null)`, `d.damageOn(actor, text, opts)`,
+`d.hud(rows|null)`, `d.encounter(text)`, `d.boxAt(actor)` → screen-space anchor for
+`say({at})` so boxes appear next to whoever is talking (ref 04).

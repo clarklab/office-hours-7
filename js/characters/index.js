@@ -130,6 +130,9 @@ export function register(id, factory) {
 function factoryFor(id) {
   const f = registry[id];
   if (!f) {
+    // Start loading anyway, so a caller that catches this, awaits `loadCast()`
+    // and retries is already most of the way there.
+    loadCast();
     throw new Error(
       `characters: '${id}' is not loaded yet. Call \`await loadCast()\` (or ` +
       '`await spawnAsync(id)`) once during setup before building characters.',

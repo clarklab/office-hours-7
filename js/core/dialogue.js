@@ -508,15 +508,39 @@ function wrapText(text, max) {
  * Stylesheet
  * ------------------------------------------------------------------ */
 
-/** Idempotently links /css/dialogue.css so the layer works on any page. */
+/**
+ * Idempotently links /css/dialogue.css so the layer works on any page, even one
+ * that forgot to include it.
+ * @returns {void}
+ */
 function ensureStylesheet() {
   if (typeof document === 'undefined') return;
   if (document.querySelector('link[data-oh-dialogue]')) return;
+  for (const l of document.querySelectorAll('link[rel="stylesheet"]')) {
+    if (/\/css\/dialogue\.css(\?|$)/.test(l.getAttribute('href') || '')) return;
+  }
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = '/css/dialogue.css';
   link.setAttribute('data-oh-dialogue', '');
   document.head.appendChild(link);
+}
+
+/**
+ * Inline copy of the geometry /css/dialogue.css sets, so the very first frame
+ * is laid out correctly even if the stylesheet has not arrived yet.
+ * @param {HTMLElement} el @param {number} z
+ * @returns {void}
+ */
+function pinLayer(el, z) {
+  const s = el.style;
+  s.position = 'absolute';
+  s.left = '0px';
+  s.top = '0px';
+  s.width = `${W}px`;
+  s.height = `${H}px`;
+  s.pointerEvents = 'none';
+  if (z) s.zIndex = String(z);
 }
 
 /* ------------------------------------------------------------------ *
@@ -528,7 +552,8 @@ function ensureStylesheet() {
  * @property {string} [speaker]   printed as the first line inside the box
  * @property {string} text        may contain \n for explicit line breaks
  * @property {string} [voice='narrator']
- * @property {string} [color]     accent for the speaker's name line
+ * @property {string} [color]     accepted for API compatibility and IGNORED:
+ *   per §10.1 the speaker's name is plain white, with no coloured plate
  * @property {number} [cps=34]
  * @property {number} [hold=750]
  * @property {'bottom'|'top'} [pos='bottom']
@@ -588,26 +613,30 @@ export function createDialogue(host) {
 
   const root = document.createElement('div');
   root.className = 'oh-dlg';
+  pinLayer(root, 2);
+  root.style.overflow = 'hidden';
   host.classList.add('oh-dlg-host');
   host.appendChild(root);
 
-  /** @param {string} cls @returns {HTMLDivElement} */
-  const layer = (cls) => {
+  /** @param {string} cls @param {number} z @returns {HTMLDivElement} */
+  const layer = (cls, z) => {
     const el = document.createElement('div');
     el.className = `oh-dlg-layer ${cls}`;
+    pinLayer(el, z);
     root.appendChild(el);
     return el;
   };
 
-  const lFx = layer('oh-dlg-fx');
-  const lHud = layer('oh-dlg-hud');
-  const lBox = layer('oh-dlg-boxes');
-  const lCard = layer('oh-dlg-cards');
-  const lMenu = layer('oh-dlg-menu');
-  const lTitle = layer('oh-dlg-title');
+  const lFx = layer('oh-dlg-fx', 10);
+  const lHud = layer('oh-dlg-hud', 15);
+  const lBox = layer('oh-dlg-boxes', 20);
+  const lCard = layer('oh-dlg-cards', 25);
+  const lMenu = layer('oh-dlg-menu', 30);
+  const lTitle = layer('oh-dlg-title', 40);
 
   const catcher = document.createElement('div');
   catcher.className = 'oh-dlg-catch';
+  pinLayer(catcher, 50);
   root.appendChild(catcher);
 
   let alive = true;
@@ -808,6 +837,25 @@ export function createDialogue(host) {
   };
 
   /**
+   * True if a candidate rect would sit on top of a box that is already up.
+   * @param {number} x @param {number} y @param {number} w @param {number} h
+   * @returns {boolean}
+   */
+  const clashes = (x, y, w, h) => {
+    for (const b of boxes.values()) {
+      if (x < b.x + b.w + 3 && x + w + 3 > b.x && y < b.y + b.h + 3 && y + h + 3 > b.y) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  /**
+   * Chooses the box's top-left corner. `at` floats it above a screen point
+   * (the Director projects the speaker's head into design space); otherwise a
+   * nine-slot anchor is used. Either way, if the ideal spot would bury a box
+   * that is still on screen, the box steps off it — overlapping dialogue is the
+   * point (ref 04), burying the previous line is not.
    * @param {SayOpts} o @param {number} w @param {number} h
    * @returns {[number, number]}
    */
@@ -817,8 +865,25 @@ export function createDialogue(host) {
       Math.round(Math.max(2, Math.min(W - 2 - w, x))),
       Math.round(Math.max(2, Math.min(H - 2 - h, y)))
     ];
+    /** @param {number} x @param {number} y @returns {[number,number]} */
+    const dodge = (x, y) => {
+      const first = clamp(x, y);
+      if (!boxes.size || !clashes(first[0], first[1], w, h)) return first;
+      const steps = [
+        [0, -(h + 5)], [0, h + 5], [-(w * 0.6), 0], [w * 0.6, 0],
+        [-(w * 0.6), -(h + 5)], [w * 0.6, -(h + 5)],
+        [-(w * 0.6), h + 5], [w * 0.6, h + 5],
+        [0, -(h + 5) * 2], [0, (h + 5) * 2]
+      ];
+      for (const [dx, dy] of steps) {
+        const c = clamp(x + dx, y + dy);
+        if (!clashes(c[0], c[1], w, h)) return c;
+      }
+      return first;
+    };
+
     if (o.at && o.at.length === 2) {
-      return clamp(o.at[0] - w / 2, o.at[1] - h - 6);
+      return dodge(o.at[0] - w / 2, o.at[1] - h - 6);
     }
     let anchor = o.anchor || (o.pos === 'top' ? 'tm' : 'bm');
     const slot = (a) => {
@@ -831,18 +896,12 @@ export function createDialogue(host) {
       const order = ['bm', 'tl', 'tr', 'ml', 'mr', 'bl', 'br', 'tm'];
       for (const a of order) {
         const [x, y] = slot(a);
-        let clash = false;
-        for (const b of boxes.values()) {
-          if (x < b.x + b.w + 3 && x + w + 3 > b.x && y < b.y + b.h + 3 && y + h + 3 > b.y) {
-            clash = true;
-            break;
-          }
-        }
-        if (!clash) return [x, y];
+        if (!clashes(x, y, w, h)) return [x, y];
       }
       anchor = 'bm';
     }
-    return slot(anchor);
+    const [sx, sy] = slot(anchor);
+    return dodge(sx, sy);
   };
 
   /**
@@ -1217,15 +1276,19 @@ export function createDialogue(host) {
     };
 
     let timer = 0;
+    let guardTimer = 0;
     const finish = () => {
       if (d.done()) return;
       disposed = true;
       clearTimeout(timer);
+      clearTimeout(guardTimer);
       cleanups.delete(finish);
       surf.remove();
       d.settle();
     };
     cleanups.add(finish);
+    // Hard watchdog: even if the logo module never resolves, the card leaves.
+    guardTimer = setTimeout(finish, ms + 4000);
     run();
     return d.promise;
   };
@@ -1645,19 +1708,24 @@ export function createDialogue(host) {
     const rx = HUD_RX + FRAME + PAD_X;
     const hy = FRAME + PAD_Y - 1;
 
-    const HP_W = 74;
-    const MP_X = 78;
+    const HP_W = 72;
+    const MP_X = 74;
     const MP_W = 34;
-    const LIM_X = 118;
-    const BAR_W = 40;
+    const BAR_W = 38;
+    const LIM_X = 116;
     const TIM_X = 162;
+
+    /** Header caption centred over a gauge column. */
+    const head = (s, x, colW) => {
+      drawText(ctx, s, x + Math.round((colW - textW(s)) / 2), hy, { color: COL_HEAD });
+    };
 
     drawText(ctx, 'NAME', lx, hy, { color: COL_HEAD });
     drawText(ctx, 'BARRIER', lx + lw - textW('BARRIER'), hy, { color: COL_HEAD });
     drawText(ctx, 'HP', rx, hy, { color: COL_HEAD });
     drawText(ctx, 'MP', rx + MP_X + MP_W - textW('MP'), hy, { color: COL_HEAD });
-    drawText(ctx, 'LIMIT', rx + LIM_X, hy, { color: COL_HEAD });
-    drawText(ctx, 'TIME', rx + TIM_X, hy, { color: COL_HEAD });
+    head('LIMIT', rx + LIM_X, BAR_W);
+    head('TIME', rx + TIM_X, BAR_W);
 
     const top = FRAME + PAD_Y + HUD_HEAD;
     for (let i = 0; i < hud.rows.length; i++) {

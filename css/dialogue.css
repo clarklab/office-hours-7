@@ -1,0 +1,83 @@
+/**
+ * OFFICE HOURS VII — dialogue layer.
+ *
+ * The UI is drawn into 1x canvases in the 384x216 design space; the player
+ * CSS-scales the host. So this file deliberately contains no gradients, no
+ * border-radius, no text, no blur and no box-shadow — every one of those would
+ * be resampled at the display scale and would soften the PS1 pixel grid. All
+ * it does is stack, size and pin things, and hold the two opacity fades.
+ */
+
+.oh-dlg-host {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-font-smoothing: none;
+}
+
+/* The layer itself. Exactly the design space; anything sliding in from
+   off-screen is clipped at the edges, which is what we want. */
+.oh-dlg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 384px;
+  height: 216px;
+  overflow: hidden;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  contain: layout paint style;
+  z-index: 2;
+}
+
+.oh-dlg-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 384px;
+  height: 216px;
+  pointer-events: none;
+}
+
+/* Paint order: effects under the boxes, menus over them, the title over all. */
+.oh-dlg-fx     { z-index: 10; }
+.oh-dlg-hud    { z-index: 15; }
+.oh-dlg-boxes  { z-index: 20; }
+.oh-dlg-cards  { z-index: 25; }
+.oh-dlg-menu   { z-index: 30; }
+.oh-dlg-title  { z-index: 40; }
+
+.oh-dlg-c {
+  position: absolute;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Only the title card fades; boxes pop, the way FF7 boxes pop. */
+.oh-dlg-fade {
+  transition: opacity 520ms linear;
+  will-change: opacity;
+}
+
+/* Enabled only while a non-auto say() or a menu is waiting for input, so the
+   player's own controls keep receiving clicks the rest of the time. */
+.oh-dlg-catch {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 384px;
+  height: 216px;
+  z-index: 50;
+  pointer-events: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oh-dlg-fade { transition-duration: 1ms; }
+}

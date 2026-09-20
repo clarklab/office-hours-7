@@ -79,8 +79,8 @@ export function createStage(canvas) {
 
   /** @type {Array<(dt: number, t: number) => void>} */
   const updates = [];
-  /** Snapshot buffer so a callback may unsubscribe itself mid-frame. */
-  let running = [];
+  /** Snapshot taken each frame so a callback may unsubscribe itself mid-frame. */
+  let frameQueue = [];
 
   let rafId = 0;
   let isRunning = false;
@@ -114,9 +114,9 @@ export function createStage(canvas) {
     last = now;
     time += dt;
 
-    running = updates.slice();
-    for (let i = 0; i < running.length; i++) {
-      running[i](dt, time);
+    frameQueue = updates.slice();
+    for (let i = 0; i < frameQueue.length; i++) {
+      frameQueue[i](dt, time);
     }
 
     updatePS1Lights(scene);
@@ -160,8 +160,16 @@ export function createStage(canvas) {
     displayW = cssW;
     displayH = cssH;
 
-    const scale = Math.max(1, Math.min(MAX_SCALE, Math.round(cssW / VIRTUAL_W)));
-    pipeline.setDisplaySize(VIRTUAL_W * scale, VIRTUAL_H * scale);
+    // Floor, never round: the drawing buffer must not be LARGER than the CSS
+    // box, or the browser minifies it and chews up the dither pattern.
+    const scale = Math.min(MAX_SCALE, Math.floor(cssW / VIRTUAL_W));
+    if (scale >= 1) {
+      pipeline.setDisplaySize(VIRTUAL_W * scale, VIRTUAL_H * scale);
+    } else {
+      // Narrower than 384 CSS px (small phones). Go straight to the display
+      // size so there is exactly one nearest resample instead of two.
+      pipeline.setDisplaySize(cssW, cssH);
+    }
 
     canvas.style.width = `${cssW}px`;
     canvas.style.height = `${cssH}px`;

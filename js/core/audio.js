@@ -332,7 +332,7 @@ function blipAt(p, ch, t, dest) {
 
   switch (p.kind) {
     case 'trombone': {
-      // "wah wah" — bandpass centre rises to ~8x then falls back, plus a slow
+      // "wah wah" — bandpass centre rises to ~7.5x then falls back, plus a slow
       // downward pitch slide. Blended with a little direct body so it has guts.
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
@@ -349,7 +349,13 @@ function blipAt(p, ch, t, dest) {
       // instrument, and he stops being distinguishable from kiki.
       const body = ctx.createGain();
       body.gain.value = 0.62;
-      const lp = filt('lowpass', f * 3.4, 0.9);
+      // The body path sweeps with the bandpass, not against it — a plunger mute
+      // opens the whole timbre, so a static lowpass here just floods the low end
+      // and flattens the wah out.
+      const lp = filt('lowpass', f * 1.6, 0.9);
+      lp.frequency.setValueAtTime(f * 1.6, t);
+      lp.frequency.exponentialRampToValueAtTime(f * 5.5, t + d * 0.42);
+      lp.frequency.exponentialRampToValueAtTime(f * 1.7, t + d);
       o.connect(bp); bp.connect(wah); wah.connect(g);
       o.connect(lp); lp.connect(body); body.connect(g);
       env(g.gain, t, p.gain, 0.022, d * 0.4, d * 0.55);
@@ -614,24 +620,24 @@ export function playSfx(id, opts = {}) {
     case 'cursor':
       // Short bright tick with a tiny downward tail. The menu heartbeat.
       tone({ t, type: 'square', f0: 1320 * r, f1: 1180 * r, glide: 0.035, dur: 0.05,
-        gain: 0.20 * v, atk: 0.002, hold: 0.012, rel: 0.038, filter: 'lowpass', cutoff: 5200, q: 0.8 });
-      tone({ t, type: 'triangle', f0: 2640 * r, dur: 0.04, gain: 0.07 * v, atk: 0.002, rel: 0.03 });
+        gain: 0.36 * v, atk: 0.002, hold: 0.012, rel: 0.038, filter: 'lowpass', cutoff: 5200, q: 0.8 });
+      tone({ t, type: 'triangle', f0: 2640 * r, dur: 0.04, gain: 0.11 * v, atk: 0.002, rel: 0.03 });
       break;
 
     case 'confirm':
       // Two-step rising chirp: the "you picked it" sound.
-      tone({ t, type: 'square', f0: 880 * r, dur: 0.055, gain: 0.17 * v, atk: 0.002, hold: 0.02, rel: 0.04,
+      tone({ t, type: 'square', f0: 880 * r, dur: 0.055, gain: 0.32 * v, atk: 0.002, hold: 0.02, rel: 0.04,
         filter: 'lowpass', cutoff: 5000, q: 0.8 });
-      tone({ t: t + 0.055, type: 'square', f0: 1318.5 * r, dur: 0.12, gain: 0.19 * v, atk: 0.002, hold: 0.03, rel: 0.1,
+      tone({ t: t + 0.055, type: 'square', f0: 1318.5 * r, dur: 0.12, gain: 0.36 * v, atk: 0.002, hold: 0.03, rel: 0.1,
         filter: 'lowpass', cutoff: 6000, q: 0.8 });
-      tone({ t: t + 0.055, type: 'triangle', f0: 2637 * r, dur: 0.1, gain: 0.06 * v, atk: 0.002, rel: 0.09 });
+      tone({ t: t + 0.055, type: 'triangle', f0: 2637 * r, dur: 0.1, gain: 0.10 * v, atk: 0.002, rel: 0.09 });
       break;
 
     case 'cancel':
       // Two-step falling chirp, duller than confirm.
-      tone({ t, type: 'square', f0: 660 * r, dur: 0.05, gain: 0.16 * v, atk: 0.002, hold: 0.018, rel: 0.035,
+      tone({ t, type: 'square', f0: 660 * r, dur: 0.05, gain: 0.30 * v, atk: 0.002, hold: 0.018, rel: 0.035,
         filter: 'lowpass', cutoff: 2600, q: 0.9 });
-      tone({ t: t + 0.05, type: 'square', f0: 392 * r, dur: 0.13, gain: 0.17 * v, atk: 0.002, hold: 0.03, rel: 0.11,
+      tone({ t: t + 0.05, type: 'square', f0: 392 * r, dur: 0.13, gain: 0.32 * v, atk: 0.002, hold: 0.03, rel: 0.11,
         filter: 'lowpass', cutoff: 2000, q: 0.9 });
       break;
 
@@ -693,7 +699,7 @@ export function playSfx(id, opts = {}) {
         const r0 = t + ring * 0.62;
         for (let i = 0; i < 8; i++) {
           const f = (i % 2 === 0 ? 880 : 660) * r;
-          tone({ t: r0 + i * 0.045, type: 'square', f0: f, dur: 0.045, gain: 0.13 * v,
+          tone({ t: r0 + i * 0.045, type: 'square', f0: f, dur: 0.045, gain: 0.26 * v,
             atk: 0.003, hold: 0.026, rel: 0.014, hard: true, filter: 'bandpass', cutoff: 1500, q: 2.2 });
         }
         hiss({ t: r0, filter: 'bandpass', cutoff: 2600, q: 3, gain: 0.02 * v, atk: 0.004, hold: 0.3, rel: 0.05 });
@@ -716,9 +722,9 @@ export function playSfx(id, opts = {}) {
 
     case 'stamp': {
       // Rubber stamp: wood click over a short thud. Marge's favourite sound.
-      hiss({ t, filter: 'bandpass', cutoff: 2400, q: 1.4, gain: 0.3 * v, atk: 0.001, hold: 0.004, rel: 0.035, hard: true });
+      hiss({ t, filter: 'bandpass', cutoff: 2400, q: 1.4, gain: 0.44 * v, atk: 0.001, hold: 0.006, rel: 0.035, hard: true });
       tone({ t, type: 'sine', f0: 190 * r, f1: 70 * r, glide: 0.07, dur: 0.11,
-        gain: 0.3 * v, atk: 0.002, hold: 0.012, rel: 0.09 });
+        gain: 0.42 * v, atk: 0.002, hold: 0.012, rel: 0.09 });
       break;
     }
 
@@ -726,9 +732,9 @@ export function playSfx(id, opts = {}) {
       const dur = Math.max(0.15, opts.duration || 0.42);
       const t2 = t + dur * 0.45;
       hiss({ t, filter: 'bandpass', cutoff: 320, cutoff1: 2600, fglide: dur * 0.45,
-        q: 1.1, gain: 0.16 * v, atk: dur * 0.4, hold: 0, rel: 0.02 });
+        q: 1.1, gain: 0.28 * v, atk: dur * 0.4, hold: 0, rel: 0.02 });
       hiss({ t: t2, filter: 'bandpass', cutoff: 2600, cutoff1: 280, fglide: dur * 0.55,
-        q: 1.1, gain: 0.16 * v, atk: 0.01, hold: 0, rel: dur * 0.55 });
+        q: 1.1, gain: 0.28 * v, atk: 0.01, hold: 0, rel: dur * 0.55 });
       break;
     }
 
@@ -762,9 +768,9 @@ export function playSfx(id, opts = {}) {
     }
 
     case 'typewriter': {
-      hiss({ t, filter: 'bandpass', cutoff: 3100, q: 2, gain: 0.16 * v, atk: 0.001, hold: 0.002, rel: 0.02, hard: true });
-      tone({ t, type: 'triangle', f0: 240 * r, f1: 150 * r, glide: 0.03, dur: 0.045,
-        gain: 0.1 * v, atk: 0.001, hold: 0.005, rel: 0.035 });
+      hiss({ t, filter: 'bandpass', cutoff: 3100, q: 1.1, gain: 0.38 * v, atk: 0.001, hold: 0.007, rel: 0.03, hard: true });
+      tone({ t, type: 'triangle', f0: 240 * r, f1: 150 * r, glide: 0.03, dur: 0.05,
+        gain: 0.2 * v, atk: 0.001, hold: 0.008, rel: 0.04 });
       break;
     }
 

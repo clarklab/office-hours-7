@@ -66,6 +66,7 @@ const SHARED = {
 /** Scratch vectors so `updatePS1Lights` allocates nothing per frame. */
 const _wp = new THREE.Vector3();
 const _dir = new THREE.Vector3();
+const _tgt = new THREE.Vector3();
 const _found = [];
 
 /* ------------------------------------------------------------------------- *
@@ -230,7 +231,7 @@ function toColor(c) {
  * @param {number} [o.unlit=0] 1 = ignore lighting entirely
  * @param {number} [o.alphaTest=0] discard threshold for cut-out textures
  * @param {'normal'|'additive'} [o.blending='normal'] additive for spell/flash quads
- * @param {boolean} [o.depthWrite] defaults to `!transparent`
+ * @param {boolean} [o.depthWrite] defaults to true unless `transparent` without `alphaTest`
  * @param {boolean} [o.depthTest=true]
  * @param {boolean} [o.cache=true] set false when you intend to mutate the uniforms
  * @returns {THREE.ShaderMaterial}
@@ -247,7 +248,8 @@ export function ps1Material(o = {}) {
   const unlit = o.unlit ? 1 : 0;
   const alphaTest = o.alphaTest === undefined ? 0 : o.alphaTest;
   const blending = o.blending === 'additive' ? THREE.AdditiveBlending : THREE.NormalBlending;
-  const depthWrite = o.depthWrite === undefined ? !transparent : !!o.depthWrite;
+  // Cut-outs (alphaTest) are not really transparent — they should still write depth.
+  const depthWrite = o.depthWrite === undefined ? (!transparent || alphaTest > 0) : !!o.depthWrite;
   const depthTest = o.depthTest === undefined ? true : !!o.depthTest;
   const useCache = o.cache === undefined ? true : !!o.cache;
 
@@ -384,9 +386,9 @@ export function getJitterScale() {
 export function updatePS1Lights(scene) {
   if (!scene) return;
 
-  // Light world positions must be current; the renderer would only do this
-  // after we have already pushed uniforms.
-  scene.updateMatrixWorld(true);
+  // Light world positions must be current: the renderer would otherwise only
+  // refresh them after we have already pushed uniforms.
+  scene.updateMatrixWorld();
 
   _found.length = 0;
   let ambR = 0;
@@ -429,7 +431,8 @@ export function updatePS1Lights(scene) {
       _dir.copy(_wp);
       if (light.target) {
         light.target.updateMatrixWorld();
-        _dir.sub(light.target.getWorldPosition(new THREE.Vector3()));
+        light.target.getWorldPosition(_tgt);
+        _dir.sub(_tgt);
       }
       if (_dir.lengthSq() < 1e-6) _dir.set(0, 1, 0);
       _dir.normalize().multiplyScalar(400);
@@ -505,6 +508,7 @@ uniform vec2  uRes;
 uniform float uSmear;
 uniform float uLift;
 uniform float uContrast;
+uniform vec3  uShadowTint;
 
 varying vec2 vUv;
 
@@ -537,6 +541,14 @@ void main() {
 
   // Crushed blacks, mild contrast — see the reference frames, they are dark.
   c = clamp( ( c - uLift ) * uContrast, 0.0, 1.0 );
+
+  // A sickly fluorescent cast in the shadows (SPEC 10.5). It is deliberately
+  // under one quantisation step, so the dither is what actually carries it.
+  // Gated off absolute black so a full fade still reaches 0,0,0.
+  float luma = dot( c, vec3( 0.299, 0.587, 0.114 ) );
+  float shadow = 1.0 - luma;
+  c += uShadowTint * shadow * shadow * smoothstep( 0.0, 0.05, luma );
+  c = clamp( c, 0.0, 1.0 );
 
   // 15-bit colour: 5 bits per channel with a 4x4 Bayer threshold. The dither
   // coordinate is the RENDER TARGET texel, not the canvas pixel, so the pattern
@@ -606,8 +618,9 @@ export function createPS1Pipeline(renderer) {
       tDiffuse: { value: targets[0].texture },
       uRes: { value: new THREE.Vector2(VIRTUAL_W, VIRTUAL_H) },
       uSmear: { value: 0.14 },
-      uLift: { value: 0.022 },
-      uContrast: { value: 1.07 },
+      uLift: { value: 0.026 },
+      uContrast: { value: 1.10 },
+      uShadowTint: { value: new THREE.Color(0.004, 0.022, 0.011) },
     },
     depthTest: false,
     depthWrite: false,

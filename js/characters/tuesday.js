@@ -186,14 +186,14 @@ const DOG_POSES = {
       if (front) {
         P.r(`thigh${leg}`, 0.06 + 0.42 * s, 0, 0);
         P.r(`shin${leg}`, -0.08 + 0.50 * Math.max(0, -s), 0, 0);
-        P.r(`paw${leg}`, 0.02 - 0.25 * Math.max(0, -s), 0, 0);
+        P.r(`paw${leg}`, 0.02 - 0.30 * Math.max(0, -s), 0, 0);
       } else {
         P.r(`thigh${leg}`, -0.55 + 0.38 * s, 0, 0);
         P.r(`shin${leg}`, 0.85 - 0.30 * Math.max(0, s) + 0.20 * Math.max(0, -s), 0, 0);
         P.r(`paw${leg}`, -0.30 - 0.20 * Math.max(0, -s), 0, 0);
       }
     }
-    P.p('hips', 0, 0.008 * (1 + Math.cos(ph * 2)) * 0.5, 0);
+    P.p('hips', 0, 0.022 + 0.008 * (1 + Math.cos(ph * 2)) * 0.5, 0);
     P.r('hips', 0, 0.05 * a, 0);
     P.r('spine', 0.01, -0.05 * a, 0);
     P.r('neck', -0.08, 0.04 * a, 0);
@@ -217,7 +217,7 @@ const DOG_POSES = {
       P.r(`pawB${s}`, -0.30 - 0.20 * Math.max(0, -c), 0, 0);
     }
     // bound: the spine flexes and the whole dog leaves the ground
-    P.p('hips', 0, 0.035 * Math.max(0, Math.sin(ph + 0.6)), 0);
+    P.p('hips', 0, 0.03 + 0.035 * Math.max(0, Math.sin(ph + 0.6)), 0);
     P.r('spine', -0.16 * Math.cos(ph), 0, 0);
     P.r('chest', 0.10 * Math.cos(ph), 0, 0);
     P.r('neck', -0.22 + 0.06 * a, 0, 0);
@@ -291,7 +291,6 @@ const DOG_POSES = {
     P.r('neck', 0.62, Math.sin(t * 0.9) * 0.22, 0);
     P.r('head', 0.30 + n * 0.05, Math.sin(t * 1.7) * 0.18, 0);
     P.r('jaw', 0.06 + 0.05 * Math.max(0, n), 0, 0);
-    P.p('hips', 0, -0.012, 0);
     P.r('spine', 0.06, 0, 0);
     P.r('earL', 0.15, 0, 0);
     P.r('earR', -0.10 + n * 0.05, 0, 0);
@@ -309,6 +308,7 @@ const DOG_POSES = {
     P.add('chest', 0, 0.22 * Math.sin(t * 5.5 + 0.8), 0);
     P.add('head', 0, 0.30 * Math.sin(t * 5.5 + 1.6), 0.2 * w);
     P.add('hips', 0, -0.20 * w, 0);
+    P.p('hips', 0, 0.045, 0);
     P.add('tailA', 0, 0.5 * Math.sin(t * 12), 0);
   },
 };
@@ -349,7 +349,7 @@ export function createTuesday() {
     // muzzle
     attach(parts.head, taperedBox(0.105, 0.085, 0.13, { top: 0.85, topZ: 1.05, bottom: 0.95 }, { color: FUR_LIGHT }),
       0, -0.035, 0.105);
-    attach(parts.head, boxMesh(0.05, 0.035, 0.035, { color: NOSE }), 0, -0.018, 0.175);
+    attach(parts.head, boxMesh(0.042, 0.028, 0.03, { color: NOSE }), 0, -0.014, 0.178);
     // jaw — opens on bark
     attach(parts.jaw, taperedBox(0.085, 0.035, 0.115, { top: 1, bottom: 0.9 }, { color: FUR_LIGHT }),
       0, -0.012, 0.055);
@@ -360,8 +360,8 @@ export function createTuesday() {
     earUp.name = 'earUp';
     // the floppy one hangs flat down the side of the skull, which is the whole
     // gag: the dog is permanently half-listening
-    const earFlop = attach(parts.earL, taperedBox(0.055, 0.24, 0.09, { top: 1.0, bottom: 0.5 }, furDark),
-      -0.048, -0.105, 0.0, [0.12, 0, 0.36]);
+    const earFlop = attach(parts.earL, taperedBox(0.055, 0.24, 0.10, { top: 1.0, bottom: 0.5 }, furDark),
+      -0.055, -0.10, 0.012, [0.12, 0, 0.42]);
     earFlop.name = 'earFloppy';
     attach(parts.earL, taperedBox(0.055, 0.07, 0.075, { top: 0.8 }, furDark), -0.012, 0.015, 0, [0, 0, 0.5]);
 

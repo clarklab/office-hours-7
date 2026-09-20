@@ -305,14 +305,14 @@ function drawFaceFrame(ctx, ox, oy, frame, o) {
   // mouth
   ctx.fillStyle = o.mouth;
   if (frame === 'talk') {
-    blob(ctx, 12, 23, 8, 6);
+    blob(ctx, 13, 23, 7, 6);
   } else if (shocked) {
     blob(ctx, 14, 24, 5, 5);
   } else if (squint) {
-    ctx.fillRect(12, 26, 8, 1);
+    ctx.fillRect(13, 26, 6, 1);
   } else {
-    ctx.fillRect(12, 25, 8, 2);
-    if (o.smirk) ctx.fillRect(20, 24, 2, 2);
+    ctx.fillRect(13, 25, 6, 2);
+    if (o.smirk) ctx.fillRect(19, 24, 2, 2);
   }
 
   if (typeof o.extra === 'function') o.extra(ctx, frame, S);
@@ -600,16 +600,15 @@ function clamp(v, lo, hi) {
 }
 
 /**
- * Exact vertical shortening of a leg whose thigh sits at `T` radians from
- * vertical and whose shin sits at `T + S`. Poses use this to drop the hips by
- * precisely the right amount, which is why no character's feet ever sink
- * through the floor.
+ * How far a leg reaches below the hips when its thigh sits at `T` radians from
+ * vertical and its shin at `T + S`. The rig solves the hip height from this
+ * every frame, which is why no character's feet ever sink through the floor —
+ * not while walking, not while slumping, and not mid-way through sitting down.
  * @param {number} T @param {number} S @param {Object<string,number>} d
  * @returns {number} metres
  */
-function legDrop(T, S, d) {
-  const straight = d.thigh + d.shin;
-  return straight - (d.thigh * Math.cos(T) + d.shin * Math.cos(T + S));
+function legReach(T, S, d) {
+  return d.thigh * Math.cos(T) + d.shin * Math.cos(T + S);
 }
 
 /**
@@ -632,7 +631,7 @@ export const HUMAN_POSES = {
     P.r('foreR', FWD * (0.20 - sway * 0.5), 0, 0);
     P.r('handL', FWD * 0.10, 0, 0);
     P.r('handR', FWD * 0.10, 0, 0);
-    P.p('hips', 0, br * 0.005 * m, 0);
+    P.p('hips', 0, (br * 0.5 + 0.5) * 0.006 * m, 0);
   },
 
   walk(P, t, c) {
@@ -651,13 +650,14 @@ export const HUMAN_POSES = {
     P.r('thighR', TR, 0, -0.02);
     P.r('shinL', SL, 0, 0);
     P.r('shinR', SR, 0, 0);
-    P.r('footL', clamp(-(TL + SL) * 0.55 + 0.04, -0.5, 0.5), 0, 0);
-    P.r('footR', clamp(-(TR + SR) * 0.55 + 0.04, -0.5, 0.5), 0, 0);
+    // The toe is never allowed to pitch far down: a 21cm shoe would scuff
+    // through the carpet on the forward swing.
+    P.r('footL', clamp(-(TL + SL) * 0.55 + 0.04, -0.5, 0.06), 0, 0);
+    P.r('footR', clamp(-(TR + SR) * 0.55 + 0.04, -0.5, 0.06), 0, 0);
 
-    // Drop the hips by exactly the amount the spread legs lose in height, so
-    // the planted foot stays welded to the floor.
-    const drop = (d.thigh + d.shin) * (1 - Math.cos(sw * Math.abs(s)));
-    P.p('hips', 0, -drop + 0.006 * (1 + Math.cos(ph * 2)) * 0.5, 0);
+    // The rig solves the hip height from the leg angles (see `groundLegs`), so
+    // this is only the extra bob on top of a planted stride.
+    P.p('hips', 0, 0.006 * (1 + Math.cos(ph * 2)) * 0.5, 0);
     P.r('hips', 0, 0.10 * s, 0);
     P.r('spine', 0.06, -0.06 * s, 0);
     P.r('chest', 0.01, -0.10 * s, 0);
@@ -697,7 +697,7 @@ export const HUMAN_POSES = {
     P.r('thighR', FWD * 0.10, 0, -0.04);
     P.r('shinL', 0.18, 0, 0);
     P.r('shinR', 0.18, 0, 0);
-    P.p('hips', 0.008 * f, -0.02 + 0.012 * Math.abs(Math.sin(t * 9.5)), 0);
+    P.p('hips', 0.008 * f, 0.012 * Math.abs(Math.sin(t * 9.5)), 0);
   },
 
   point(P, t, c) {
@@ -725,7 +725,6 @@ export const HUMAN_POSES = {
     P.r('spine', 0.13, 0, 0);
     P.r('chest', 0.05, 0, 0);
     P.r('head', 0.20 + Math.sin(t * 1.7) * 0.02 * m, Math.sin(t * 0.9) * 0.05 * m, 0);
-    P.p('hips', 0, -0.006, 0);
   },
 
   shrug(P, t) {
@@ -760,7 +759,7 @@ export const HUMAN_POSES = {
     P.r('shinR', bend * 2, 0, 0);
     P.r('footL', -bend, 0, 0);
     P.r('footR', -bend, 0, 0);
-    P.p('hips', 0, hop * 0.085 - legDrop(FWD * bend, bend * 2, d), 0);
+    P.p('hips', 0, hop * 0.085, 0);
   },
 
   slump(P, t, c) {
@@ -785,7 +784,7 @@ export const HUMAN_POSES = {
     P.r('shinR', S, 0, 0);
     P.r('footL', -(T + S), 0, 0);
     P.r('footR', -(T + S), 0, 0);
-    P.p('hips', 0, -legDrop(T, S, d) - 0.01, 0);
+    P.p('hips', 0, -0.006, 0);
   },
 
   sit(P, t, c) {
@@ -798,18 +797,16 @@ export const HUMAN_POSES = {
  * a character can sit and talk, sit and type, or sit and panic.
  * @type {Pose}
  */
-export const HUMAN_SIT = (P, t, c) => {
-  const d = c.dims;
+export const HUMAN_SIT = (P) => {
   const T = -1.35;
   const S = 1.35;
-  const seat = d.foot + d.shin + d.thigh * Math.cos(T);
   P.r('thighL', T, 0, 0.06);
   P.r('thighR', T, 0, -0.06);
   P.r('shinL', S, 0, 0);
   P.r('shinR', S, 0, 0);
   P.r('footL', 0.06, 0, 0);
   P.r('footR', 0.06, 0, 0);
-  P.p('hips', 0, seat - (d.foot + d.shin + d.thigh), -0.26);
+  P.p('hips', 0, 0, -0.26);
   P.add('spine', 0.03, 0, 0);
 };
 
@@ -862,6 +859,7 @@ export const HUMAN_SIT_JOINTS = ['hips', 'thighL', 'thighR', 'shinL', 'shinR', '
  * @property {THREE.Texture} [faceTex] face atlas, so the rig can drive frames
  * @property {Object<string,string>} [animFace] anim -> face frame overrides
  * @property {Object<string,number>} [style] `motion`, `armSwing`, `faceRate`
+ * @property {boolean} [groundLegs] false disables the hip-height solver
  * @property {number} [emoteY] height of the emote bubble in metres
  * @property {string} [defaultAnim]
  * @property {(dt:number, t:number, actor:Actor)=>void} [onUpdate]
@@ -941,6 +939,11 @@ export function createRig(profile, build, opts = {}) {
   const animFace = Object.assign({}, ANIM_FACE, spec.animFace || {});
   const faceTex = spec.faceTex || null;
   const emoteY = spec.emoteY === undefined ? (profile.height || 1.75) + 0.22 : spec.emoteY;
+  // Humanoid rigs keep their feet on the floor by solving the hip height each
+  // frame. Quadrupeds and anything exotic opt out with `spec.groundLegs=false`.
+  const groundLegs = spec.groundLegs === false
+    ? false
+    : !!(parts.thighL && parts.shinL && parts.thighR && parts.shinR && parts.hips && !opts.skeleton);
 
   const bufA = makeBuffer(jointNames);
   const bufB = makeBuffer(jointNames);
@@ -1186,6 +1189,18 @@ export function createRig(profile, build, opts = {}) {
         joint.rotation.set(v[0], v[1], v[2]);
         joint.position.set(r.x + v[3], r.y + v[4], r.z + v[5]);
       }
+    }
+
+    // Solve the hip height from whatever the legs ended up doing, so the
+    // longer leg's sole lands exactly on y=0. Poses only author the extra
+    // offset (a walk's bob, a cheer's hop), never the drop.
+    if (groundLegs) {
+      const reach = Math.max(
+        legReach(parts.thighL.rotation.x, parts.shinL.rotation.x, dims),
+        legReach(parts.thighR.rotation.x, parts.shinR.rotation.x, dims),
+      );
+      const extra = src.hips[4] + (hasBias ? bufBias.hips[4] : 0);
+      parts.hips.position.y = dims.foot + reach + extra;
     }
   }
 

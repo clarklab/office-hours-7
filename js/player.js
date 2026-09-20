@@ -17,7 +17,13 @@
  *      Set on `window` BEFORE play. A positive multiplier (1 = real time, capped at 64)
  *      read once when playback starts. `window.__OH_SPEED` is accepted as an alias.
  *      It scales the stage delta the director, set and cast are ticked with, and scales
- *      dialogue typing speed and holds to match.
+ *      dialogue typing speed and holds to match. The player then sets
+ *      `window.__OH_SPEED_HANDLED = true` before the episode starts, so a harness that
+ *      would otherwise dilate rAF itself knows not to apply the speed-up twice.
+ *
+ * Also for the harness: `window.__OH_POSTER === true` selects poster mode without the
+ * query string, `window.__OH_STATE` mirrors the player state, and `window.__OH_DONE`
+ * goes true when an episode finishes.
  *
  * The heavy 3D modules are imported lazily so the title screen paints immediately and
  * an episode that has not been written yet never downloads three.js.
@@ -149,6 +155,24 @@ function scaleUi(ui, k) {
 }
 
 /**
+ * Adapts the office set's flat `BOUNDS` into the `{min:{x,y,z}, max:{x,y,z}}` box the
+ * director keeps generated camera positions inside. Returns undefined for anything it
+ * does not recognise, which just leaves the director on its own defaults.
+ *
+ * @param {Object|undefined} b
+ * @returns {{min:{x:number,y:number,z:number}, max:{x:number,y:number,z:number}}|undefined}
+ */
+function toDirectorBounds(b) {
+  if (!b || typeof b !== 'object') return undefined;
+  if (b.min && b.max) return /** @type {*} */ (b);
+  if (typeof b.minX !== 'number' || typeof b.maxX !== 'number') return undefined;
+  return {
+    min: { x: b.minX, y: typeof b.floor === 'number' ? b.floor : 0.25, z: b.minZ },
+    max: { x: b.maxX, y: typeof b.ceil === 'number' ? b.ceil : 2.75, z: b.maxZ },
+  };
+}
+
+/**
  * Draws the logo mark into the watch-page header lockup and the favicon.
  * Never the wordmark: on this page the mark alone carries the brand.
  */
@@ -202,7 +226,9 @@ function installBrand() {
 export function initPlayer() {
   const params = new URLSearchParams(location.search);
   const rawId = (params.get('ep') || '').trim();
-  const posterMode = params.get('poster') === '1' || params.get('poster') === 'true';
+  const posterMode = params.get('poster') === '1'
+    || params.get('poster') === 'true'
+    || window.__OH_POSTER === true;
   const meta = getEpisode(rawId || DEFAULT_EPISODE_ID);
 
   const frame = $('frame');
@@ -226,6 +252,13 @@ export function initPlayer() {
 
   /** @type {string} */
   let state = S.IDLE;
+
+  /** Sets the player state and mirrors it onto `window.__OH_STATE` for the harness. */
+  const setState = (next) => {
+    state = next;
+    window.__OH_STATE = next;
+  };
+  setState(S.IDLE);
   /** @type {import('/js/core/engine.js').Stage|null} */
   let stage = null;
   /** @type {Object|null} */
@@ -278,7 +311,7 @@ export function initPlayer() {
 
   /** @param {string} title @param {string} body */
   function fail(title, body) {
-    state = S.ERROR;
+    setState(S.ERROR);
     const t = $('err-title');
     const b = $('err-body');
     if (t) t.textContent = title;
@@ -446,9 +479,12 @@ export function initPlayer() {
     note('Building the office');
     /** @type {Object|null} */
     let office = null;
+    /** @type {Object|undefined} */
+    let bounds;
     try {
       const mod = await import('/js/sets/office.js');
       office = mod.createOffice();
+      bounds = toDirectorBounds(mod.BOUNDS);
       if (office && office.group) stage.scene.add(office.group);
       if (office && typeof office.update === 'function') {
         unsubs.push(view.onUpdate((dt, t) => {
@@ -462,25 +498,44 @@ export function initPlayer() {
 
     note('Hiring the cast');
     /** @type {Object<string, Object>} */
-    const cast = {};
+    let cast = {};
     try {
       const mod = await import('/js/characters/index.js');
-      const ids = Object.keys(mod.CAST || mod.PROFILES || {});
-      for (const id of ids) {
-        try {
-          const actor = mod.spawn(id);
-          if (!actor) continue;
-          cast[id] = actor;
-          if (actor.group) stage.scene.add(actor.group);
-          if (typeof actor.update === 'function') {
-            unsubs.push(view.onUpdate((dt, t) => {
-              try { actor.update(dt, t); } catch (err) { warn(`${id}.update`, err); }
-            }));
+
+      // The character builders live behind a dynamic import so the gallery can read
+      // PROFILES without three. spawnAll() loads them and builds the whole cast.
+      if (typeof mod.spawnAll === 'function') {
+        cast = await mod.spawnAll();
+      } else {
+        if (typeof mod.loadCast === 'function') await mod.loadCast();
+        for (const id of Object.keys(mod.CAST || mod.PROFILES || {})) {
+          try {
+            const actor = mod.spawn(id);
+            if (actor) cast[id] = actor;
+          } catch (err) {
+            warn(`could not spawn ${id}`, err);
           }
-        } catch (err) {
-          warn(`could not spawn ${id}`, err);
         }
       }
+      if (mine !== token) return null;
+
+      for (const id of Object.keys(cast)) {
+        const actor = cast[id];
+        if (actor && actor.group) stage.scene.add(actor.group);
+      }
+
+      // Nothing in the rig is self-driving, so the player owns the tick.
+      const tickCast = typeof mod.updateCast === 'function'
+        ? (dt, t) => mod.updateCast(cast, dt, t)
+        : (dt, t) => {
+          for (const id of Object.keys(cast)) {
+            const actor = cast[id];
+            if (actor && typeof actor.update === 'function') actor.update(dt, t);
+          }
+        };
+      unsubs.push(view.onUpdate((dt, t) => {
+        try { tickCast(dt, t); } catch (err) { warn('cast.update', err); }
+      }));
     } catch (err) {
       warn('the cast has not been hired yet', err);
     }
@@ -497,6 +552,7 @@ export function initPlayer() {
     director = dir.createDirector(view, uiView, {
       shots: office ? office.shots : undefined,
       marks: office ? office.marks : undefined,
+      bounds,
       host: uiHost,
     });
 
@@ -519,7 +575,9 @@ export function initPlayer() {
     const mine = token;
 
     speed = fastForward();
-    state = S.LOADING;
+    // Claim the speed-up so a harness does not also dilate rAF and double it.
+    window.__OH_SPEED_HANDLED = true;
+    setState(S.LOADING);
     showOverlay('load');
     note('Loading episode');
     setStatus('Loading the episode.');
@@ -564,7 +622,7 @@ export function initPlayer() {
     }
     if (!ctx || mine !== token) return;
 
-    state = S.PLAYING;
+    setState(S.PLAYING);
     finished = false;
     showOverlay(null);
     if (chrome) chrome.hidden = false;
@@ -594,7 +652,7 @@ export function initPlayer() {
   }
 
   function endCard() {
-    state = S.ENDED;
+    setState(S.ENDED);
     stopProgress();
     if (hideTimer) clearTimeout(hideTimer);
     frame?.classList.remove('playing');
@@ -623,7 +681,7 @@ export function initPlayer() {
   function replay() {
     window.__OH_DONE = false;
     teardown();
-    state = S.IDLE;
+    setState(S.IDLE);
     showOverlay(null);
     play();
   }
@@ -672,7 +730,7 @@ export function initPlayer() {
    * frame, and raise the flag a screenshotter waits on.
    */
   async function runPoster() {
-    state = S.POSTER;
+    setState(S.POSTER);
     document.body.classList.add('poster');
     showOverlay(null);
     if (chrome) chrome.hidden = true;

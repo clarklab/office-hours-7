@@ -10,81 +10,45 @@
 
 import { drawFullLogo, drawMark } from '/js/brand/logo.js';
 import { EPISODES } from '/js/episodes/index.js';
+import { PROFILES } from '/js/characters/index.js';
 
 /* ------------------------------------------------------------------ *
  * the cast — data only
  * ------------------------------------------------------------------ */
 
+/** Billing order for the cast strip. @type {string[]} */
+const CAST_ORDER = ['brad', 'dez', 'kiki', 'roop', 'marge', 'tuesday'];
+
 /**
- * The six `CharProfile`-shaped records the cast strip renders.
+ * One line of silhouette description per character.
  *
- * These are copied from SPEC §6 rather than imported from `/js/characters/index.js`:
- * that module's `PROFILES` sits in the same file as the character factories, which
- * statically import `rig.js` -> `three`, so importing it here would pull the whole
- * 1MB+ 3D stack into a page that renders no 3D at all. SPEC §6 is the authority for
- * both files; if a character's accent or role changes there, change it here too.
+ * Everything else the strip shows — names, roles, accents and joke stats — comes from
+ * `PROFILES` in `/js/characters/index.js`, which is deliberately dependency-free: it
+ * imports neither three nor any character builder, so the gallery stays a 2D page.
+ * Only this prose lives here, because it is the site's copy rather than cast data.
  *
- * `hook` is this page's own field — the silhouette note from the spec table, used as
- * the one-line character description.
+ * @type {Object<string, string>}
+ */
+const HOOKS = {
+  brad: 'Tallest in the room, hair at an angle, puffy vest over a dress shirt.',
+  dez: 'Shoulder pads with a magenta suit attached. Shades indoors. Ponytail.',
+  kiki: 'Shortest, roundest hair, headset mic boom, forever tangled in the cord.',
+  roop: 'Hood up, shoulders down, cargo shorts, socks and sandals, under a desk.',
+  marge: 'Ramrod straight, tight bun, enormous round glasses, one red ledger.',
+  tuesday: 'Scruffy and tan. One floppy ear, one up. Tail keeps perfect time.',
+};
+
+/**
+ * The cast strip's rows, in billing order: the real `CharProfile` records with this
+ * page's one-line hook attached.
  *
  * @type {ReadonlyArray<{id:string, name:string, fullName:string, role:string, color:string, stats:string[], hook:string}>}
  */
-export const CAST_PROFILES = Object.freeze([
-  Object.freeze({
-    id: 'brad',
-    name: 'BRAD',
-    fullName: 'BRAD HOLLOWAY',
-    role: 'Founder / CEO',
-    color: '#39c7b5',
-    stats: Object.freeze(['LV 9', 'HP 40/40', 'VIBES 999']),
-    hook: 'Tallest in the room, hair at an angle, puffy vest over a dress shirt.',
-  }),
-  Object.freeze({
-    id: 'dez',
-    name: 'DEZ',
-    fullName: 'DEZ VALENTI',
-    role: 'Head of Sales',
-    color: '#e0457b',
-    stats: Object.freeze(['LV 12', 'HP 88/88', 'CLOSE RATE 4%']),
-    hook: 'Shoulder pads with a magenta suit attached. Shades indoors. Ponytail.',
-  }),
-  Object.freeze({
-    id: 'kiki',
-    name: 'KIKI',
-    fullName: 'KIKI PARK',
-    role: 'Front of House',
-    color: '#7ee04a',
-    stats: Object.freeze(['LV 7', 'HP 62/62', 'PATIENCE 0']),
-    hook: 'Shortest, roundest hair, headset mic boom, forever tangled in the cord.',
-  }),
-  Object.freeze({
-    id: 'roop',
-    name: 'ROOP',
-    fullName: 'RUPERT "ROOP" NG',
-    role: 'IT',
-    color: '#8f7ae0',
-    stats: Object.freeze(['LV 14', 'HP 31/31', 'TICKETS 402']),
-    hook: 'Hood up, shoulders down, cargo shorts, socks and sandals, under a desk.',
-  }),
-  Object.freeze({
-    id: 'marge',
-    name: 'MARGE',
-    fullName: 'MARGUERITE OKONKWO',
-    role: 'Finance',
-    color: '#e8a33d',
-    stats: Object.freeze(['LV 11', 'HP 55/55', 'MP 12']),
-    hook: 'Ramrod straight, tight bun, enormous round glasses, one red ledger.',
-  }),
-  Object.freeze({
-    id: 'tuesday',
-    name: 'TUESDAY',
-    fullName: 'TUESDAY',
-    role: 'Unauthorised Dog',
-    color: '#c98a4b',
-    stats: Object.freeze(['LV ?', 'HP ???', 'GOOD 10/10']),
-    hook: 'Scruffy and tan. One floppy ear, one up. Tail keeps perfect time.',
-  }),
-]);
+export const CAST_PROFILES = Object.freeze(
+  CAST_ORDER
+    .filter((id) => PROFILES && PROFILES[id])
+    .map((id) => Object.freeze(Object.assign({ hook: HOOKS[id] || '' }, PROFILES[id]))),
+);
 
 /** Display names by id, for the "starring" line on each episode card. */
 const NAME_BY_ID = Object.fromEntries(CAST_PROFILES.map((p) => [p.id, p.name]));
@@ -679,7 +643,7 @@ export function renderCast(mount) {
   for (const p of CAST_PROFILES) {
     const li = el('li', 'cast-card', [
       el('p', 'cast-name', p.name),
-      el('p', 'cast-role', `${p.fullName} — ${p.role}`),
+      el('p', 'cast-role', `${p.fullName} \u2014 ${p.role}`),
       el('p', 'cast-hook', p.hook),
       el('ul', 'cast-stats', p.stats.map((s) => el('li', null, s))),
     ]);

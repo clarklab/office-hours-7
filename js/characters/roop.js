@@ -154,17 +154,39 @@ export function createRoop() {
     prop.rotation.set(0.10, 0.62, 0.06);
     parts.chest.add(prop);
 
+    /**
+     * Whatever the rest of him is doing, the left arm keeps the CRT. The
+     * posture bias supplies the actual carry angles; this just gets the pose
+     * out of their way.
+     * @param {import('./rig.js').PoseWriter} P
+     */
+    const carry = (P) => {
+      P.r('armL', 0.02, 0, -0.06);
+      P.r('foreL', 0.04, 0, 0);
+      P.r('handL', 0, 0, 0);
+      P.p('shoulderL', 0, 0, 0.02);
+    };
+
     return {
       faceTex,
       prop,
+      poses: {
+        /** @type {import('./rig.js').Pose} */
+        cheer: (P, t, c) => { api.POSES.cheer(P, t, c); carry(P); },
+        /** @type {import('./rig.js').Pose} */
+        panic: (P, t, c) => { api.POSES.panic(P, t, c); carry(P); },
+        /** @type {import('./rig.js').Pose} */
+        shrug: (P, t, c) => { api.POSES.shrug(P, t, c); carry(P); },
+      },
       emoteY: 1.88,
       style: { motion: 0.85, armSwing: 0.35, faceRate: 6 },
       // THE HUNCH. Also the left arm folded up under the monitor.
       bias: (P) => {
-        P.r('spine', 0.30, 0, 0);
-        P.r('chest', 0.14, 0, 0);
-        P.r('head', 0.20, 0, 0);
-        P.p('head', 0, -0.015, 0.03);
+        P.r('spine', 0.26, 0, 0);
+        P.r('chest', 0.12, 0, 0);
+        P.r('neck', 0.16, 0, 0);
+        P.r('head', -0.16, 0, 0);
+        P.p('head', 0, -0.01, 0.035);
         P.p('shoulderL', 0, -0.01, 0.025);
         P.p('shoulderR', 0, -0.01, 0.025);
         P.r('armL', -0.12, 0, -0.10);

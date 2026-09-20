@@ -94,27 +94,27 @@ export function createKiki() {
     const hairMat = { color: HAIR };
     // six chunks arranged so the OUTLINE is an octagon: narrow crown, wide
     // middle band, narrowing again at the jaw. Faceted, never smooth.
-    attach(parts.head, taperedBox(0.52, 0.20, 0.48, { top: 0.94, bottom: 0.96 }, hairMat), 0, 0.30, -0.02);
-    attach(parts.head, taperedBox(0.44, 0.15, 0.42, { top: 0.66, bottom: 1.0 }, hairMat), 0, 0.455, -0.02);
-    attach(parts.head, taperedBox(0.46, 0.17, 0.42, { top: 1.0, bottom: 0.66 }, hairMat), 0, 0.125, -0.02);
-    attach(parts.head, taperedBox(0.40, 0.15, 0.14, { top: 0.86, shearZ: 0.025 }, hairMat), 0, 0.245, 0.135);
-    attach(parts.head, taperedBox(0.44, 0.30, 0.18, { top: 0.86, bottom: 0.80 }, hairMat), 0, 0.17, -0.20);
-    attach(parts.head, taperedBox(0.17, 0.22, 0.34, { top: 0.72, bottom: 0.72 }, hairMat), -0.215, 0.10, -0.02);
-    attach(parts.head, taperedBox(0.17, 0.22, 0.34, { top: 0.72, bottom: 0.72 }, hairMat), 0.215, 0.10, -0.02);
+    attach(parts.head, taperedBox(0.52, 0.19, 0.44, { top: 0.94, bottom: 0.96 }, hairMat), 0, 0.295, -0.035);
+    attach(parts.head, taperedBox(0.44, 0.12, 0.40, { top: 0.66, bottom: 1.0 }, hairMat), 0, 0.425, -0.035);
+    attach(parts.head, taperedBox(0.46, 0.16, 0.26, { top: 1.0, bottom: 0.66 }, hairMat), 0, 0.135, -0.105);
+    attach(parts.head, taperedBox(0.40, 0.13, 0.14, { top: 0.86, shearZ: 0.025 }, hairMat), 0, 0.245, 0.125);
+    attach(parts.head, taperedBox(0.44, 0.30, 0.18, { top: 0.86, bottom: 0.80 }, hairMat), 0, 0.17, -0.205);
+    attach(parts.head, taperedBox(0.16, 0.23, 0.32, { top: 0.72, bottom: 0.72 }, hairMat), -0.215, 0.105, -0.05);
+    attach(parts.head, taperedBox(0.16, 0.23, 0.32, { top: 0.72, bottom: 0.72 }, hairMat), 0.215, 0.105, -0.05);
 
     /* ---- headset: band, earpiece, boom, mic ---- */
     const gear = { color: 0x1f2126 };
-    attach(parts.head, boxMesh(0.46, 0.026, 0.042, gear), 0, 0.45, 0.02);
-    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), -0.232, 0.35, 0.02);
-    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), 0.232, 0.35, 0.02);
-    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), -0.252, 0.25, 0.02);
-    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), 0.252, 0.25, 0.02);
+    attach(parts.head, boxMesh(0.46, 0.026, 0.042, gear), 0, 0.425, 0.01);
+    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), -0.232, 0.325, 0.01);
+    attach(parts.head, boxMesh(0.028, 0.20, 0.042, gear), 0.232, 0.325, 0.01);
+    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), -0.252, 0.225, 0.01);
+    attach(parts.head, boxMesh(0.058, 0.09, 0.075, { color: 0x34363d }), 0.252, 0.225, 0.01);
     // the boom sweeps from the left earpiece across to the mouth — it is the
     // one bit of Kiki that reads in a straight-on silhouette
     const boom = attach(parts.head, taperedBox(0.018, 0.36, 0.018, { top: 0.75 }, gear),
-      -0.132, 0.16, 0.135, [2.61, 0, -0.735]);
+      -0.135, 0.135, 0.135, [2.61, 0, -0.735]);
     boom.name = 'micBoom';
-    attach(parts.head, boxMesh(0.036, 0.036, 0.036, { color: 0x44464d }), -0.015, 0.04, 0.21);
+    attach(parts.head, boxMesh(0.036, 0.036, 0.036, { color: 0x44464d }), -0.015, 0.02, 0.20);
 
     /* ---- face: enormous eyes, absolutely flat delivery ---- */
     const faceTex = faceTexture({
@@ -137,7 +137,7 @@ export function createKiki() {
         }
       },
     });
-    addFace(parts.head, faceTex, { w: 0.22, h: 0.20, y: d.head * 0.53, z: 0.127 });
+    addFace(parts.head, faceTex, { w: 0.205, h: 0.185, y: d.head * 0.46, z: 0.127 });
 
     /* ---- prop: the handset, with the cord ---- */
     const prop = new THREE.Object3D();

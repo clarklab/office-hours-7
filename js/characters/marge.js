@@ -131,13 +131,32 @@ export function createMarge() {
     const band = boxMesh(0.08, 0.035, 0.245, { color: 0x3a2320 });
     band.position.y = 0.09;
     prop.add(band);
-    prop.position.set(-0.275, 0.02, 0.02);
+    prop.position.set(-0.285, -0.055, 0.03);
     prop.rotation.set(0.06, 0, 0.05);
     parts.chest.add(prop);
+
+    /**
+     * The ledger never leaves her left arm, whatever the right one is up to.
+     * @param {import('./rig.js').PoseWriter} P
+     */
+    const clamp = (P) => {
+      P.r('armL', 0.04, 0, -0.03);
+      P.r('foreL', 0.02, 0, 0);
+      P.r('handL', 0, 0, 0);
+      P.p('shoulderL', 0, 0, 0);
+    };
 
     return {
       faceTex,
       prop,
+      poses: {
+        /** @type {import('./rig.js').Pose} */
+        cheer: (P, t, c) => { api.POSES.cheer(P, t, c); clamp(P); },
+        /** @type {import('./rig.js').Pose} */
+        panic: (P, t, c) => { api.POSES.panic(P, t, c); clamp(P); },
+        /** @type {import('./rig.js').Pose} */
+        shrug: (P, t, c) => { api.POSES.shrug(P, t, c); clamp(P); },
+      },
       emoteY: 1.98,
       style: { motion: 0.35, armSwing: 0.45, faceRate: 6 },
       // Vertical. The left arm clamps the ledger; nothing else moves much.

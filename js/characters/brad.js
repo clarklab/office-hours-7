@@ -87,12 +87,12 @@ export function createBrad() {
     const quilt = vestTexture();
     const vestMat = { color: VEST, map: quilt };
 
-    attach(parts.chest, taperedBox(0.68, 0.31, 0.40, { top: 0.94, bottom: 1.0 }, vestMat), 0, 0.135, 0.005);
-    attach(parts.spine, taperedBox(0.64, 0.26, 0.38, { top: 1.02, bottom: 0.86 }, vestMat), 0, 0.125, 0.005);
+    attach(parts.chest, taperedBox(0.60, 0.26, 0.38, { top: 0.90, bottom: 1.0 }, vestMat), 0, 0.075, 0.005);
+    attach(parts.spine, taperedBox(0.58, 0.26, 0.37, { top: 1.03, bottom: 0.86 }, vestMat), 0, 0.125, 0.005);
     // collar roll — the bit that makes it read as a vest and not a barrel
-    attach(parts.chest, taperedBox(0.30, 0.09, 0.26, { top: 0.88 }, { color: VEST_DARK }), 0, 0.275, 0.01);
+    attach(parts.chest, taperedBox(0.26, 0.10, 0.24, { top: 0.86 }, { color: VEST_DARK }), 0, 0.245, 0.01);
     // zip
-    attach(parts.chest, boxMesh(0.025, 0.28, 0.02, { color: VEST_DARK }), 0, 0.13, 0.195);
+    attach(parts.chest, boxMesh(0.025, 0.24, 0.02, { color: VEST_DARK }), 0, 0.08, 0.19);
 
     /* ---- gelled hair: one base chunk, three forward-raked spikes ---- */
     attach(parts.head, taperedBox(0.285, 0.12, 0.27, { top: 0.9, shearZ: -0.01 }, { color: HAIR }), 0, 0.275, -0.005);

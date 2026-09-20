@@ -43,7 +43,7 @@
 </header>
 
 <main class="stage" id="stage">
-  <div class="frame" id="frame">
+  <div class="frame" id="frame" tabindex="-1">
     <canvas id="scene" width="384" height="216" role="img"
             aria-label="The episode plays here as a live 3D scene."></canvas>
 
@@ -58,7 +58,7 @@
         <p class="kicker" id="idle-kicker">Office Hours 7</p>
         <h2 class="chroma" id="idle-title">&mdash;</h2>
         <p id="idle-log"></p>
-        <button class="play" id="play" type="button">
+        <button class="play" id="play" type="button" data-oh-play>
           <span class="tri" aria-hidden="true">&#9654;</span>
           Play
         </button>

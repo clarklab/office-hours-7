@@ -145,7 +145,7 @@ button {
 /* Widely tracked small caps — the demo-disc voice. */
 .kicker {
   margin: 0;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   font-weight: 700;
   letter-spacing: var(--track-wide);
@@ -203,7 +203,7 @@ button {
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   text-transform: uppercase;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
 }
 
 .topbar b {
@@ -277,7 +277,7 @@ button {
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px 0;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   text-transform: uppercase;
@@ -351,7 +351,7 @@ button {
 
 .section-head .count {
   flex: 0 0 auto;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
 }
@@ -544,7 +544,7 @@ button {
 }
 
 .ep-cast {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   line-height: 1.5;
   letter-spacing: 0.07em;
@@ -563,7 +563,7 @@ button {
 }
 
 .ep-run {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   font-variant-numeric: tabular-nums;
@@ -640,7 +640,7 @@ button {
 
 .cast-hook {
   margin-top: 6px;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-sm);
   line-height: 1.5;
 }
@@ -709,7 +709,7 @@ button {
 .specs div + div { border-top: 1px solid var(--edge-soft); }
 
 .specs dt {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   text-transform: uppercase;
   letter-spacing: var(--track-mid);
   font-size: var(--t-xs);
@@ -737,7 +737,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   text-transform: uppercase;
@@ -813,7 +813,7 @@ body.watch::before { opacity: 0.55; }
 }
 
 .w-run {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   font-variant-numeric: tabular-nums;
@@ -971,7 +971,7 @@ body.watch::before { opacity: 0.55; }
 }
 
 .hint {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   text-transform: uppercase;
@@ -1034,7 +1034,7 @@ body.watch::before { opacity: 0.55; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .loading-note {
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: var(--t-xs);
   letter-spacing: var(--track-mid);
   text-transform: uppercase;
@@ -1153,7 +1153,7 @@ body.watch::before { opacity: 0.55; }
 
 .ctl .time {
   padding-inline: 4px;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: 11px;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
@@ -1185,7 +1185,7 @@ body[data-frame='xs'] .w-log .line { display: block; }
 .w-log b {
   display: block;
   margin-top: 4px;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: 10px;
   font-weight: 400;
   letter-spacing: var(--track-mid);
@@ -1197,7 +1197,7 @@ body[data-frame='xs'] .w-log .line { display: block; }
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px 20px;
-  color: var(--oh-faint);
+  color: var(--oh-silver-lo);
   font-size: 10px;
   letter-spacing: var(--track-mid);
   text-transform: uppercase;

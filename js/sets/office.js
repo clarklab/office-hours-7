@@ -340,7 +340,7 @@ export function createOffice() {
   props.coffeeMachine = coffee;
 
   const fr = P.fridge();
-  put(group, fr, BOUNDS.maxX - 0.36, 0, -5.4, -Math.PI / 2);
+  put(group, fr, BOUNDS.maxX - 0.36, 0, -5.85, -Math.PI / 2);
   props.fridge = fr;
 
   const rt = P.roundTable({ r: 0.72 });
@@ -367,8 +367,14 @@ export function createOffice() {
   const label = P.poster('LABEL\nYOUR\nFOOD', {
     w: 0.42, h: 0.58, accent: '#b98a3a', sub: 'THIS MEANS YOU', size: 11,
   });
-  put(group, label, 7.6, 1.7, DIV_C - WT / 2 - 0.012, Math.PI);
+  put(group, label, 10.2, 1.78, BOUNDS.minZ + 0.02);
   props.labelPoster = label;
+  put(group, P.poster('DO NOT TAKE\nTHE LAST\nCOFFEE', {
+    w: 0.36, h: 0.5, accent: '#8c3a30', size: 8,
+  }), 7.6, 1.7, DIV_C - WT / 2 - 0.012, Math.PI);
+  // wall cabinets, so the break room is not two metres of bare paint
+  group.add(P.boxMesh(2.2, 0.62, 0.34, { color: P.PALETTE.beige, jitter: 0.9 }, 7.7, 1.85, BOUNDS.minZ + 0.17));
+  group.add(P.boxMesh(0.02, 0.1, 0.03, { color: P.PALETTE.metal }, 7.7, 1.6, BOUNDS.minZ + 0.35));
 
   put(group, P.pottedPlant({ dead: true, scale: 0.8 }), 6.5, 0, -5.9);
 
@@ -514,7 +520,7 @@ export function createOffice() {
     breakSeat1: mark(8.58, -2.53),
     breakSeat2: mark(9.40, -3.95),
     breakSeat3: mark(10.22, -2.53),
-    fridge: mark(11.3, -5.4),
+    fridge: mark(11.3, -5.85),
     microwave: mark(7.4, -5.35),
     coffee: mark(8.7, -5.35),
     sink: mark(10.25, -5.35),
@@ -538,21 +544,21 @@ export function createOffice() {
 
   /** @type {Object<string, {pos:number[], look:number[], fov?:number}>} */
   const shots = {
-    establish: shot(-3.6, 2.42, 6.4, 1.8, 0.95, -3.2, 62),
+    establish: shot(-2.4, 2.42, 6.6, 2.2, 0.95, -3.4, 62),
     bullpenWide: shot(-3.6, 1.80, 3.9, 1.4, 1.05, -3.6),
     bullpenLow: shot(-1.0, 0.45, 1.6, 0.4, 1.2, -3.4, 62),
     bullpenReverse: shot(1.6, 1.6, -6.0, -1.6, 1.15, -1.6),
-    deskCloseA: shot(-2.30, 1.52, -1.60, -3.3, 1.2, -4.5, 50),
-    deskCloseB: shot(-3.6, 1.45, -0.5, -1.6, 1.15, -1.8, 50),
+    deskRowA: shot(-5.30, 1.45, -4.90, -2.6, 1.20, -4.3, 52),
+    deskRowB: shot(-3.6, 1.45, -0.5, -1.6, 1.15, -1.8, 50),
     floorLevel: shot(1.4, 0.28, 2.6, -1.0, 1.05, -2.8, 62),
     ceiling: shot(-2.4, 0.9, 1.9, -2.5, 2.70, -1.2, 58),
     whiteboard: shot(-3.06, 1.50, 3.83, -4.55, 1.40, 1.95, 52),
     waterCooler: shot(3.0, 1.5, 0.4, 5.35, 1.15, 1.4, 52),
-    windowWall: shot(1.8, 1.55, -2.0, 1.2, 1.45, -6.9, 56),
+    windowWall: shot(0.0, 1.58, -1.4, 0.0, 1.45, -6.9, 56),
 
     receptionDesk: shot(-8.1, 1.66, -2.3, -11.9, 1.5, -2.42, 52),
-    receptionWide: shot(-6.6, 1.85, 1.3, -11.2, 1.1, -2.6, 60),
-    logoWall: shot(-9.6, 1.5, -2.4, -12.9, 1.58, -2.4, 50),
+    receptionWide: shot(-7.2, 1.80, -5.6, -10.8, 1.05, -0.6, 62),
+    logoWall: shot(-9.6, 1.5, -2.4, -12.9, 1.60, -1.55, 50),
 
     doorway: shot(-4.0, 1.58, -0.14, -10.6, 1.42, -0.50, 54),
     hallway: shot(1.8, 1.70, 2.0, -4.2, 1.00, 5.8, 60),
@@ -560,15 +566,15 @@ export function createOffice() {
 
     breakWide: shot(6.8, 1.75, -0.9, 10.2, 1.05, -4.6, 60),
     breakTable: shot(9.4, 1.45, -0.7, 9.4, 0.9, -3.3, 52),
-    breakCounter: shot(8.6, 1.5, -4.6, 8.8, 1.0, -6.45, 54),
-    fridge: shot(10.4, 1.5, -3.6, 12.4, 1.2, -5.5, 52),
+    breakCounter: shot(8.3, 1.66, -3.5, 8.8, 1.32, -6.4, 58),
+    fridge: shot(10.3, 1.5, -3.8, 12.4, 1.2, -5.9, 52),
     vending: shot(10.2, 1.45, -3.0, 11.6, 1.1, -0.6, 52),
 
     meetingWide: shot(6.6, 1.85, 6.4, 9.9, 1.0, 3.2, 60),
     meetingHead: shot(9.4, 1.55, 7.0, 9.4, 1.3, 0.9, 52),
     meetingReverse: shot(9.4, 1.6, 1.75, 9.4, 1.15, 5.4, 54),
     meetingTable: shot(7.4, 1.25, 5.6, 9.6, 0.85, 3.6, 54),
-    projector: shot(11.4, 1.5, 3.4, 11.2, 1.55, 0.35, 50),
+    projector: shot(11.5, 1.50, 4.4, 11.2, 1.62, 0.40, 52),
   };
 
   /* -------------------------------------------------------------- update */
@@ -588,7 +594,7 @@ export function createOffice() {
     if (t >= flickerNext) {
       // long stretches of "fine", then a burst of stutter
       const calm = flickerState > 0.5;
-      flickerState = calm ? 0.06 + Math.random() * 0.3 : 0.82 + Math.random() * 0.18;
+      flickerState = calm ? 0.24 + Math.random() * 0.26 : 0.84 + Math.random() * 0.16;
       flickerNext = t + (calm ? 0.04 + Math.random() * 0.12 : 0.25 + Math.random() * 2.6);
     }
     const panelLevel = flickerState * (0.94 + Math.sin(t * 41) * 0.06);

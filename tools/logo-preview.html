@@ -1,0 +1,18 @@
+<!doctype html><meta charset=utf-8><title>logo</title>
+<style>html,body{margin:0;background:#05070c}canvas{display:block}</style>
+<canvas id=c></canvas>
+<script type=module>
+import {drawFullLogo} from '/js/brand/logo.js';
+const q=new URLSearchParams(location.search);
+const W=+q.get('w')||1600, H=+q.get('h')||1100;
+const mode=q.get('mode')||'full';
+const c=document.getElementById('c');c.width=W;c.height=H;
+const x=c.getContext('2d');
+if(q.get('bg')!=='none'){x.fillStyle='#05070c';x.fillRect(0,0,W,H);}
+drawFullLogo(x,W,H,{
+  subtitle:mode==='mark'?undefined:'a MULCH production',
+  mark:true, wordmark:mode!=='mark',
+  glow:mode==='mark'?0.5:0.35
+});
+document.fonts.ready.then(()=>{window.__done=true});
+</script>

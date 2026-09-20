@@ -1,8 +1,8 @@
-# OFFICE HOURS — Technical & Creative Spec
+# OFFICE HOURS VII — Technical & Creative Spec
 _A PS1-era 3D comedy-shorts show. Read this in full before writing code._
 
 ## 0. What we are building
-A static website hosting three ~60-second "episodes". Each episode is a **live Three.js
+A static website hosting three ~60-second "episodes" of **OFFICE HOURS VII**. Each episode is a **live Three.js
 scene**, not a video: pressing play runs a directed cutscene with camera cuts, character
 animation, FF7-style dialogue boxes, and gibberish voice synthesis.
 
@@ -40,6 +40,8 @@ design space** and CSS-scaled by an integer-ish factor so UI pixels match scene 
 /vendor/three.module.js        [DONE — do not touch]
 /docs/SPEC.md                  [DONE — do not touch]
 
+/js/brand/logo.js              [ORCHESTRATOR — already written, do not edit]
+/css/brand.css                 [ORCHESTRATOR — already written, do not edit]
 /js/core/ps1.js                [Agent: RENDER]
 /js/core/engine.js             [Agent: RENDER]
 /js/core/audio.js              [Agent: AUDIO]
@@ -486,7 +488,8 @@ export async function loadEpisode(id)   // dynamic import()
   `/vendor/*` and a 200-rewrite-free plain static config.
 
 ## 5. The show
-**Title:** `OFFICE HOURS` — sub-branded `a Mulch production`.
+**Title:** `OFFICE HOURS VII` — sub-branded `a MULCH production`.
+(Plain-text name: "Office Hours 7". The LOGO lockup uses the roman numeral **VII**, per §11.)
 **Company:** **MULCH, Inc.** — "The Everything Layer." A Series A startup whose product is
 never explained. Eleven days of runway. Office is one floor of a business park.
 **Tone:** deadpan, absurd, affectionate. Workplace comedy via JRPG grammar. Never mean.
@@ -673,3 +676,83 @@ The FF7 field/cutscene models are **blockier than you think**:
 The Director gains: `d.targetOn(actor|null)`, `d.damageOn(actor, text, opts)`,
 `d.hud(rows|null)`, `d.encounter(text)`, `d.boxAt(actor)` → screen-space anchor for
 `say({at})` so boxes appear next to whoever is talking (ref 04).
+
+---
+
+# 11. THE LOGO & BRAND — `OFFICE HOURS VII`
+**The show is called OFFICE HOURS VII.** It is a Final Fantasy VII riff, top to bottom, and the
+logo is the single loudest signal of that. This supersedes every earlier mention of the title.
+
+- Plain-text / prose name: **Office Hours 7**
+- Logo lockup / title cards / hero: **OFFICE HOURS VII** (roman numeral)
+- Sub-brand: **a MULCH production**
+
+## 11.1 The logo module — already written, DO NOT reimplement
+`/js/brand/logo.js` is written and owned by the orchestrator. **Use it. Never hand-roll the
+logo as styled HTML text, and never approximate it with a font + letter-spacing.**
+
+```js
+/**
+ * Draws the full OFFICE HOURS VII logo lockup into a 2D canvas context.
+ * Deterministic — the same size always produces the same hand-drawn linework.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} w @param {number} h    logical size to compose within
+ * @param {Object} [o]
+ * @param {boolean} [o.mark=true]      draw the meteor illustration above the type
+ * @param {boolean} [o.wordmark=true]  draw OFFICE HOURS + VII
+ * @param {string}  [o.subtitle]       small caps line under the lockup, e.g. 'a MULCH production'
+ * @param {number}  [o.glow=0.35]      cool outer glow strength, 0..1
+ * @param {number}  [o.seed=7]         linework jitter seed
+ */
+export function drawFullLogo(ctx, w, h, o = {})
+
+/** Just the meteor illustration. Same options. */
+export function drawMark(ctx, w, h, o = {})
+/** Just the OFFICE HOURS / VII type lockup. Same options. */
+export function drawWordmark(ctx, w, h, o = {})
+
+/**
+ * Convenience: returns a detached <canvas> with the logo drawn at deviceScale.
+ * @returns {HTMLCanvasElement}
+ */
+export function logoCanvas(w, h, o = {})
+
+/**
+ * Convenience for 3D: a nearest-filtered THREE.Texture of the logo on transparent black.
+ * Import lazily — it pulls in three.
+ * @returns {Promise<THREE.Texture>}
+ */
+export async function logoTexture(w, h, o = {})
+```
+
+Consumers:
+- **SITE agent** — the hero on `/index.html` is `logoCanvas()` mounted into the hero block, sized
+  responsively (redraw on resize; it is vector-ish, so redraw rather than CSS-scale the bitmap).
+  Also use `drawMark()` alone for the favicon and for a small header lockup on `/watch.html`.
+- **EPISODE agents** — the opening title card is the logo, not a text title. Call
+  `d.title({ logo: true, subtitle: 'EPISODE ONE — "STANDUP"' })`. If `dialogue.js`'s `title()`
+  does not support a `logo` option by the time you write your episode, pass the canvas in via
+  whatever it does support and note it in your report.
+- **DIALOGUE agent** — add `logo: true` support to `title()`: draw `drawFullLogo` into a canvas
+  sized to the 384x216 design space and fade it in, holding ~2s, with the subtitle beneath.
+
+## 11.2 What the logo looks like
+Anatomy copied from the FF7 logo, with the content swapped:
+1. **The mark** — fine white hand-drawn line art, sitting above and slightly overlapping the
+   type. Where FF7 has Meteor hanging over the planet, we have a **crumpled sheet of paper the
+   size of a meteor**, faceted and creased, trailing motion streaks, bearing down on a tiny flat
+   horizon with one small office block on it. Thin confident strokes, lots of negative space,
+   hatching on the shadow side. The joke is scale: an enormous wad of discarded paper, and a
+   very small business park.
+2. **The wordmark** — `OFFICE HOURS` in a high-contrast serif, widely tracked, centred; then
+   `VII` much larger beneath it. Both filled with a **vertical metallic silver gradient**
+   (white at the top, a hard mid-grey band across the middle, bright again at the bottom) over
+   a thin near-black outline. That silver band is the thing that makes it read as the real logo.
+3. **A cool blue outer glow** at low opacity, and nothing else. Black background.
+
+## 11.3 Brand rules for the site
+- `/css/brand.css` holds the palette tokens. Use them; do not invent new greys.
+- The logo is always on black or near-black. Never on a light background, never recoloured.
+- The serif of the logo is for the logo only. Body and UI type stays monospace/pixel.
+- `MULCH, Inc.` keeps its own flat corporate mark in-world (on the office wall) — that is set
+  dressing and is deliberately ugly. It is not related to the show logo.

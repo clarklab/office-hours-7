@@ -37,7 +37,7 @@ export const EPISODES = Object.freeze([
     numeral: 'I',
     title: 'STANDUP',
     logline: 'Five people introduce themselves. It does not help.',
-    runtime: '1:00',
+    runtime: '1:05',
     accent: '#39c7b5',
     starring: Object.freeze(['brad', 'dez', 'kiki', 'roop', 'marge']),
     thumb: '/assets/thumbs/ep1.png',

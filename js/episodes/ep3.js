@@ -96,16 +96,17 @@ const SPOT = {
  */
 const SHOT = {
   /**
-   * THE BATTLE STANCE. Note the height: the HUD owns the bottom 40% of the
-   * frame, so any camera that has to see a 62cm dog at the same time has to
-   * sit at roughly her eye level and stay level. Every `battle*` set-up below
-   * obeys that, which is also why this episode looks the way it does.
+   * THE BATTLE STANCE. Note the height. The HUD owns the bottom 40% of the
+   * frame and the command window owns the lower left (x 8..110), so a camera
+   * that has to hold a 62cm dog as well sits ON THE CARPET, stays level, and
+   * is swung so she lands right of centre in the clear. Menus are only ever
+   * drawn over `battle`; that constraint is why this episode looks like this.
    */
-  battle: { pos: [0.10, 0.58, 3.20], look: [0.15, 0.58, -1.00], fov: 56 },
+  battle: { pos: [0.10, 0.30, 3.05], look: [0.15, 0.30, -1.00], fov: 56 },
   /** Same stance, swung left — favours Kiki, keeps the dog downstage right. */
-  battleLeft: { pos: [-2.30, 0.60, 2.50], look: [-0.30, 0.60, -1.00], fov: 52 },
+  battleLeft: { pos: [-2.30, 0.38, 2.50], look: [-0.30, 0.38, -1.00], fov: 52 },
   /** Swung right — favours Dez and Marge, dog downstage left. */
-  battleRight: { pos: [2.70, 0.60, 2.30], look: [0.60, 0.60, -1.00], fov: 52 },
+  battleRight: { pos: [2.70, 0.38, 2.30], look: [0.60, 0.38, -1.00], fov: 52 },
   /** THE DOG'S POINT OF VIEW: over her ears, up at five enormous adults. */
   dogPov: { pos: [0.68, 0.32, 1.75], look: [-0.30, 1.50, -1.25], fov: 60 },
   /** The long one. Low, wide, and she runs clean out of both sides of it. */
@@ -271,7 +272,7 @@ async function run(ctx) {
 
   // A held wide. Out at frame right, small, something is sniffing a water
   // cooler. Nobody in this building has noticed.
-  await d.beat(400);
+  await d.beat(320);
 
   d.cut(single(d, c.marge, 20, 3.0));
   d.face(c.marge, 'bullpenCenter');
@@ -290,10 +291,10 @@ async function run(ctx) {
   // FLOOR LEVEL. The camera is 28cm off the carpet and a dog walks into it.
   d.cut('floorLevel');
   d.place(dog, SPOT.dogEnter, SPOT.dogMark);
-  await d.walk(dog, SPOT.dogMark, 1250);
+  await d.walk(dog, SPOT.dogMark, 1150);
   d.anim(dog, 'sniff');
   d.face(dog, SPOT.downstage);
-  await d.beat(500);
+  await d.beat(420);
 
   /* ============================================= ACT 2 — THE ENCOUNTER === */
 
@@ -301,7 +302,7 @@ async function run(ctx) {
   d.anim(dog, 'bark');
   d.shake(0.34, 460);
   d.music('chase');
-  await d.flash('#ffffff', 250);
+  await d.flash('#ffffff', 220);
 
   // The white frame covers the reposition: five people who were at their
   // desks are now standing in a semicircle, which is how offices work.
@@ -315,7 +316,7 @@ async function run(ctx) {
   d.face(dog, SPOT.downstage);
   d.cut(onDog(d, dog, 14, 2.90, 1.15));
   d.hud(partyRows());
-  await d.beat(300);
+  await d.beat(260);
 
   d.targetOn(dog);
   await d.encounter('! TUESDAY APPEARED', { ms: 950 });
@@ -343,7 +344,7 @@ async function run(ctx) {
   d.anim(c.brad, 'idle');
   d.anim(c.kiki, 'idle');
   d.anim(c.roop, 'shrug');
-  await command(d, 0, 1050);
+  await command(d, 0, 820);
 
   cutTo(d, onDog(d, dog, -34, 1.95, 0.62), dog);
   d.face(dog, SPOT.brad);
@@ -372,7 +373,7 @@ async function run(ctx) {
   cutTo(d, SHOT.battle, dog);
   d.anim(c.dez, 'slump');
   d.anim(dog, 'idle');
-  await command(d, 1, 1050);
+  await command(d, 1, 880);
 
   cutTo(d, SHOT.battleLeft, dog);
   d.anim(c.kiki, 'talk');
@@ -400,7 +401,7 @@ async function run(ctx) {
   d.anim(c.roop, 'idle');
   d.anim(c.brad, 'idle');
   d.anim(dog, 'sniff');
-  await command(d, 2, 1100);
+  await command(d, 2, 950);
 
   // TWO BOXES AT ONCE (ref 04): the arithmetic and the denial, talking over
   // each other. Distinct ids and keep:true, or the second one eats the first.
@@ -431,7 +432,7 @@ async function run(ctx) {
 
   cutTo(d, SHOT.battle, dog);
   d.anim(c.roop, 'idle');
-  await command(d, 3, 1100);
+  await command(d, 3, 950);
 
   /* -------------------------------------------------------------------- *
    * THE ZOOMIES. ONE SHOT. NO CUTS. She leaves frame left, comes back,
@@ -439,8 +440,10 @@ async function run(ctx) {
    * sentence about her.
    * -------------------------------------------------------------------- */
 
-  // Cursor off: she stopped being a target the moment she started enjoying
-  // herself, and nobody in this room is going to admit they noticed.
+  // The one shot with nothing on top of it. The HUD drops, the cursor goes,
+  // the command window is gone: she stopped being a target the moment she
+  // started enjoying herself, and for eight seconds this is only a dog.
+  d.hud(null);
   cutTo(d, SHOT.zoomies);
   d.anim(c.brad, 'shrug');
   d.anim(c.dez, 'point');
@@ -450,22 +453,24 @@ async function run(ctx) {
   d.sfx('bark');
   await d.toast('TUESDAY USED ZOOMIES', 900);
 
-  await dash(d, dog, SPOT.zoomA, 1300);
+  await dash(d, dog, SPOT.zoomA, 1250);
   await d.all(
-    dash(d, dog, SPOT.zoomB, 1850),
+    dash(d, dog, SPOT.zoomB, 1800),
     d.say(c.kiki, 'Zoomies.', { cps: CPS, hold: HOLD }),
   );
   await d.all(
-    dash(d, dog, SPOT.zoomC, 1600),
+    dash(d, dog, SPOT.zoomC, 1550),
     d.say(c.marge, 'That is four laps.', { cps: CPS, hold: HOLD }),
   );
-  await dash(d, dog, SPOT.zoomD, 950);
+  await dash(d, dog, SPOT.zoomD, 900);
   d.anim(dog, 'shake');
   d.sfx('bark');
-  await d.beat(700);
+  await d.beat(620);
   d.anim(dog, 'idle');
   d.face(dog, SPOT.brad);
-  await d.beat(300);
+  d.hud(partyRows());
+  d.updateHud({ BRAD: { hp: 26 }, ROOP: { hp: 19 } });
+  await d.beat(260);
 
   /* ================================= ACT 4 — THE ONE CORRECT THING ====== */
 
@@ -477,12 +482,12 @@ async function run(ctx) {
   // legible shape in this whole show; seen from behind she is a brown box.
   d.face(dog, SPOT.sitLook);
   cutTo(d, onDog(d, dog, -63, 2.10, 0.80, { fov: 52 }));
-  await d.beat(620);
+  await d.beat(540);
 
   d.anim(dog, 'sit');
   d.sfx('fanfare');
   d.music('victory');
-  await d.beat(750);
+  await d.beat(650);
 
   cutTo(d, SHOT.battle);
   d.anim(c.brad, 'panic');
@@ -514,7 +519,7 @@ async function run(ctx) {
   await d.beat(150);
   chorus.push(d.say(c.marge, 'Unbudgeted.', { id: 'cr-marge', keep: true, at: [257, 98], maxWidth: 118, cps: CPS, hold: 460 }));
   await d.all(chorus);
-  await d.beat(260);
+  await d.beat(220);
   d.closeBoxes(null);
 
   /* ================================================ ACT 5 — THE BUTTON == */
@@ -532,7 +537,7 @@ async function run(ctx) {
   d.face(c.roop, SPOT.chair);
 
   d.cut(SHOT.throneClose);
-  await d.beat(520);
+  await d.beat(440);
 
   d.cut(single(d, c.brad, 30, 2.6));
   await d.say(c.brad, '......that is my chair.', { cps: CPS, hold: HOLD });
@@ -551,16 +556,16 @@ async function run(ctx) {
   ]);
   d.subtitle('TUESDAY  —  GOOD 10/10');
   d.sfx('chime');
-  await d.beat(520);
+  await d.beat(440);
 
   d.anim(c.marge, 'talk');
   await d.say(c.marge, 'Motion carries.', { cps: CPS, hold: HOLD });
   d.anim(c.marge, 'idle');
   d.anim(c.kiki, 'idle');
-  await d.beat(800);
+  await d.beat(680);
 
   d.music(null);
-  await d.fadeOut(700);
+  await d.fadeOut(620);
 }
 
 /**

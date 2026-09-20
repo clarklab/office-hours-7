@@ -22,7 +22,11 @@
  *   the standup .....  slab + Brad + menu + 4 overlapping lines .. ~15s
  *   button ..........  optimism + silence + the number + fade .... ~6s
  *   ------------------------------------------------------------------
- *   MEASURED 64.0s end to end (tools/check.mjs --ep=ep1), target 55-70s
+ *   MEASURED 58.6s end to end (tools/check.mjs --ep=ep1), target 55-70s.
+ *   Repeat runs land between 56s and 65s: the dialogue layer types and holds
+ *   on real time while the Director waits on stage time, so a machine having
+ *   a bad afternoon stretches the waits and not the typing. Both ends are
+ *   inside the window; do not spend the margin.
  *
  * @module episodes/ep1
  */
@@ -221,14 +225,14 @@ async function run(ctx) {
     await d.nameCard(brad, { ms: 1050 });
 
     // Boxes ride the top of frame, ref 02: the people stay in the lower half.
-    await d.say(brad, "I don't believe in meetings.", {
+    await d.say(brad, 'I don\'t believe in meetings.', {
       maxWidth: WIDE_BOX, anchor: 'tr', hold: 500,
     });
 
     // Cut to the low angle for the word itself. Founders are shot from below.
     d.cut(CAM.bradLow);
     d.anim(brad, 'point');
-    await d.say(brad, "That's why this is a STANDUP.", {
+    await d.say(brad, 'That\'s why this is a STANDUP.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 640,
     });
     await d.beat(420);
@@ -240,19 +244,19 @@ async function run(ctx) {
     d.sfx('phone', { gain: 0.35 });
     await d.nameCard(dez, { ms: 1050 });
 
-    await d.say(dez, "I've got a whale on the hook.", {
+    await d.say(dez, 'I\'ve got a whale on the hook.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 240,
     });
-    await d.say(dez, "He doesn't know it yet.", {
+    await d.say(dez, 'He doesn\'t know it yet.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 240,
     });
-    await d.say(dez, "He doesn't know me.", {
+    await d.say(dez, 'He doesn\'t know me.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 340,
     });
 
     d.anim(dez, 'idle');
     await d.beat(260);
-    await d.say(dez, "He hung up.\nThat's the first yes.", {
+    await d.say(dez, 'He hung up.\nThat\'s the first yes.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 620,
     });
 
@@ -262,17 +266,17 @@ async function run(ctx) {
     d.cut(CAM.reception);
     await d.nameCard(kiki, { ms: 1050 });
 
-    // Three calls. One answer. The boxes stack down the right of frame because
-    // nothing about the call ever changes.
-    // Each call comes back faster than the last. She does not.
-    const KIKI_LINE = "Front desk. No he's not.";
+    // Three calls, one answer. The boxes stack down the right of frame because
+    // nothing about the call ever changes, and each one types back faster than
+    // the last. She does not.
+    const KIKI_LINE = 'Front desk. No he\'s not.';
     await d.say(kiki, KIKI_LINE, { id: 'kiki-1', keep: true, at: [268, 52], cps: 34, hold: 240 });
     await d.say(kiki, KIKI_LINE, { id: 'kiki-2', keep: true, at: [268, 98], cps: 46, hold: 220 });
     await d.say(kiki, KIKI_LINE, { id: 'kiki-3', keep: true, at: [268, 144], cps: 58, hold: 340 });
     d.closeBoxes(null);
 
     toCam(kiki);
-    await d.say(kiki, "That's the whole job.", {
+    await d.say(kiki, 'That\'s the whole job.', {
       maxWidth: WIDE_BOX, anchor: 'tr', hold: 600,
     });
 
@@ -294,17 +298,19 @@ async function run(ctx) {
 
     /* ======================================================== INTRO — MARGE */
 
-    d.cut(CAM.margeBoxes);
+    // She was filing at the back of the hallway; now she is between the two
+    // stacks, facing the lens, walled in.
     d.place(marge, 'boxes', [-1.40, 0, 3.30]);
+    d.cut(CAM.margeBoxes);
     await d.nameCard(marge, { ms: 1050 });
 
-    await d.say(marge, "I've prepared a slide.", {
+    await d.say(marge, 'I\'ve prepared a slide.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 300,
     });
-    await d.say(marge, "It's one number.", {
+    await d.say(marge, 'It\'s one number.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 300,
     });
-    await d.say(marge, "It's red.", {
+    await d.say(marge, 'It\'s red.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 780,
     });
 
@@ -497,7 +503,7 @@ export default {
   number: 1,
   title: 'STANDUP',
   logline: 'Five people introduce themselves. It does not help.',
-  runtime: '1:03',
+  runtime: '1:05',
   starring: ['brad', 'dez', 'kiki', 'roop', 'marge'],
   accent: ACCENT,
   run,

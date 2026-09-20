@@ -500,11 +500,17 @@ export function createOffice() {
     deskMarge: mark(3.3, -4.45),
     deskRoop: mark(-1.65, -1.65),
     deskEmpty: mark(1.65, -1.65),
-    seatBrad: mark(-3.28, -5.15),
-    seatDez: mark(0.02, -5.15),
-    seatMarge: mark(3.32, -5.15),
-    seatRoop: mark(-1.65, -1.10),
-    seatEmpty: mark(1.95, -1.10),
+    // Chair side, not desk side. Row A users sit at +Z of their desk
+    // (ROW_A_DESK_Z + 1.65) and row B is mirrored (ROW_B_DESK_Z - 1.40); these
+    // marks had the userDir offset applied with the wrong sign, which put every
+    // one of them across the desk from its actual chair. A capsule dropped
+    // there still stood on open floor, so the set's standable-marks sweep did
+    // not catch it — it checked that a mark was clear, not that it was the seat.
+    seatBrad: mark(-3.28, ROW_A_DESK_Z + 1.65),
+    seatDez: mark(0.02, ROW_A_DESK_Z + 1.65),
+    seatMarge: mark(3.32, ROW_A_DESK_Z + 1.65),
+    seatRoop: mark(-1.63, ROW_B_DESK_Z - 1.40),
+    seatEmpty: mark(1.95, ROW_B_DESK_Z - 1.40),
     whiteboard: mark(-3.50, 1.82),
     waterCooler: mark(4.55, 1.4),
     deadPlant: mark(4.3, -5.9),

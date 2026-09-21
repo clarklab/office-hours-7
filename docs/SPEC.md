@@ -388,11 +388,13 @@ Rig requirements:
 - Humanoid skeleton of nested `Object3D` joints: `root > hips > (spine > chest > (neck > head, shoulderL > armL > foreL > handL, shoulderR > ...)), thighL > shinL > footL, thighR > ...`
   Meshes are **children of joints**, offset so the joint is the pivot. Animations rotate joints only.
 - **~1.75m tall humans.** World units are metres. Feet at y=0 for `group.position.y = 0`.
-- PS1 budget: aim 300-900 triangles per character. Boxes and low-segment cylinders only.
-- Faces are **textures**, not geometry — draw them with `makeTexture` (32x32 or 64x64):
-  PS1 faces are 2 dark eye blobs, a mouth line, maybe a nose pixel. Give each character a
-  face texture with a couple of frames (neutral / talk-open / shocked) packed in a
-  2x2 atlas and swap `map.offset` for talking. Affine warping should be ON for faces.
+- PS1 budget: aim 300-900 triangles per character. Chamfered prisms (`prismBox`), boxes,
+  pyramids and low-segment cylinders only.
+- Faces are **textures**, not geometry — 48px cells in a 4x4 atlas built by `faceAtlas` /
+  `faceTexture`: four expressions (`neutral` / `happy` / `shocked` / `squint`) as columns,
+  and mouth closed / mouth open / blink as rows. The rig swaps `map.offset`: the expression
+  comes from the animation (or `actor.setExpression`), the mouth flaps while talking (or is
+  held with `actor.setMouth`), and blinks are automatic. Affine warping should be ON for faces.
 - Animations are **procedural** (sin/cos on joint rotations driven by `update(dt,t)`), with
   a short cross-fade (~0.15s) between poses. No keyframe data files.
 - `emote` spawns a small always-camera-facing sprite-ish quad above the head (sweat drop,

@@ -84,8 +84,8 @@ export const PROFILES = {
     role: 'UNAUTHORISED DOG',
     color: '#c98a4b',
     voice: 'tuesday',
-    stats: ['LV ?', 'HP ???', 'GOOD 10/10'],
-    height: 0.62,
+    stats: ['LV 14', 'LEGS 3/4', 'GOOD 10/10'],
+    height: 0.45,
   },
 };
 
@@ -185,7 +185,7 @@ export const CAST = {
   roop: () => factoryFor('roop')(),
   /** @returns {Actor} MARGUERITE OKONKWO — finance, bun, glasses, red ledger. */
   marge: () => factoryFor('marge')(),
-  /** @returns {Actor} TUESDAY — an unauthorised dog. */
+  /** @returns {Actor} TUESDAY — an unauthorised dog: an old, three-legged dapple dachshund. */
   tuesday: () => factoryFor('tuesday')(),
 };
 

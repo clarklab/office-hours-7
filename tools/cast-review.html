@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cast Review</title>
+<!--
+  Side-by-side review of the cast: the reference branch (left, loaded through
+  /__ref/ by tools/cast-review.mjs) against this working tree (right). The
+  import-map scope re-roots every /js/ import made by a /__ref/ module, so the
+  old cast gets the old rig and the old ps1 materials while both share one three.
+-->
+<script type="importmap">{
+  "imports": { "three": "/vendor/three.module.js" },
+  "scopes": { "/__ref/": { "/js/": "/__ref/js/" } }
+}</script>
+<style>
+  :root { color-scheme: dark; --bg:#0c1118; --panel:#141c26; --line:#243142; --ink:#dfe6ee; --dim:#8494a6; --hot:#39c7b5; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.4 ui-monospace, Menlo, monospace; }
+  header { display:flex; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:14px; margin:0; letter-spacing:.08em; }
+  header .ref { color:var(--dim); }
+  main { display:grid; grid-template-columns: 1fr 300px; gap:0; min-height:calc(100vh - 42px); }
+  #stageWrap { position:relative; display:flex; align-items:center; justify-content:center; background:#000; min-height:300px; }
+  #labels { position:absolute; inset:0; pointer-events:none; }
+  #labels span { position:absolute; top:10px; padding:2px 8px; background:rgba(0,0,0,.6); border:1px solid var(--line); }
+  aside { background:var(--panel); border-left:1px solid var(--line); padding:12px 14px; overflow:auto; }
+  aside h2 { font-size:11px; color:var(--dim); letter-spacing:.1em; margin:14px 0 6px; text-transform:uppercase; }
+  .row { display:flex; flex-wrap:wrap; gap:4px; }
+  button { font:inherit; color:var(--ink); background:#1b2532; border:1px solid var(--line); padding:4px 8px; cursor:pointer; }
+  button:hover { border-color:var(--dim); }
+  button.on { background:var(--hot); color:#06201c; border-color:var(--hot); }
+  table { width:100%; border-collapse:collapse; margin-top:4px; }
+  td, th { text-align:right; padding:2px 4px; border-bottom:1px solid var(--line); }
+  td:first-child, th:first-child { text-align:left; }
+  .up { color:#8fd07a; }
+  #sheets { display:flex; gap:24px; padding:14px 16px; flex-wrap:wrap; border-top:1px solid var(--line); }
+  #sheets figure { margin:0; }
+  #sheets figcaption { color:var(--dim); margin-bottom:6px; }
+  #sheets canvas { image-rendering:pixelated; background:#000; border:1px solid var(--line); }
+  #err { color:#e0457b; white-space:pre-wrap; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } aside { border-left:0; border-top:1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header><h1>CAST REVIEW</h1><span class="ref" id="refLabel">loading…</span></header>
+<main>
+  <div>
+    <div id="stageWrap"><canvas id="c"></canvas><div id="labels"></div></div>
+    <section id="sheets"></section>
+  </div>
+  <aside>
+    <h2>Character</h2><div class="row" id="who"></div>
+    <h2>View</h2><div class="row" id="view"></div>
+    <h2>Expression</h2><div class="row" id="expr"></div>
+    <h2>Mouth</h2><div class="row" id="mouth"></div>
+    <h2>Animation</h2><div class="row" id="anim"></div>
+    <h2>Stage</h2><div class="row" id="opts"></div>
+    <h2>Triangles</h2><table id="tris"></table>
+    <div id="err"></div>
+  </aside>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { createStage } from '/js/core/engine.js';
+import * as NEW from '/js/characters/index.js';
+
+const $ = (s) => document.querySelector(s);
+const err = (e) => { $('#err').textContent += `${e && e.stack || e}\n`; console.error(e); };
+
+const refInfo = await fetch('/__ref').then((r) => r.json()).catch(() => ({ ref: null }));
+let OLD = null;
+let oldPs1 = null;
+if (refInfo.ref) {
+  try {
+    OLD = await import('/__ref/js/characters/index.js');
+    oldPs1 = await import('/__ref/js/core/ps1.js');
+    await OLD.loadCast();
+  } catch (e) { err(e); OLD = null; }
+}
+$('#refLabel').textContent = OLD ? `left: ${refInfo.ref}  ·  right: this tree` : 'reference cast unavailable — run node tools/cast-review.mjs';
+await NEW.loadCast();
+
+const stage = createStage($('#c'));
+const { scene, camera } = stage;
+scene.fog.density = 0.004;
+
+/* ---- studio: a floor, a backdrop, three lights (the PS1 shader takes four) ---- */
+const studio = new THREE.Group();
+scene.add(studio);
+const { ps1Material } = await import('/js/core/ps1.js');
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30, 10, 10), ps1Material({ color: 0x3a4250 }));
+floor.rotation.x = -Math.PI / 2;
+studio.add(floor);
+const back = new THREE.Mesh(new THREE.PlaneGeometry(30, 10, 10, 4), ps1Material({ color: 0x252c38 }));
+back.position.set(0, 5, -4);
+studio.add(back);
+studio.add(new THREE.AmbientLight(0x6a7480, 0.9));
+const key = new THREE.PointLight(0xfff0dc, 2.2, 14); key.position.set(2.5, 3.4, 3.5); studio.add(key);
+const fill = new THREE.PointLight(0xb8c8ff, 0.9, 12); fill.position.set(-3, 2.2, 2.5); studio.add(fill);
+const rim = new THREE.PointLight(0xffffff, 1.0, 10); rim.position.set(0, 3.2, -2.5); studio.add(rim);
+
+/* ---- state ---- */
+const S = { id: 'brad', view: 'pair', expr: null, mouth: 'auto', anim: 'idle', spin: false, office: false };
+let actors = [];     // [{actor, side:'old'|'new'}]
+let office = null;
+let yaw = 0;
+
+function clear() {
+  for (const { actor } of actors) { actor.group.removeFromParent(); actor.dispose && actor.dispose(); }
+  actors = [];
+}
+
+function build() {
+  clear();
+  const ids = S.view === 'pair' || S.view === 'face' ? [S.id] : NEW.CAST_IDS;
+  const lineup = ids.length > 1;
+  ids.forEach((id, i) => {
+    const pairs = [];
+    if (OLD && S.view !== 'lineup-new') pairs.push(['old', OLD.spawn(id)]);
+    if (S.view !== 'lineup-old') pairs.push(['new', NEW.spawn(id)]);
+    pairs.forEach(([side, a], j) => {
+      let x;
+      if (!lineup) { const k = S.view === 'face' ? 0.36 : 0.62; x = pairs.length === 1 ? 0 : (j === 0 ? -k : k); }
+      else x = (i - (ids.length - 1) / 2) * 0.9;
+      const z = lineup && pairs.length > 1 ? (side === 'old' ? -1.4 : 0.4) : 0;
+      a.group.position.set(x + (office ? office.base.x : 0), office ? office.base.y : 0, z + (office ? office.base.z : 0));
+      scene.add(a.group);
+      actors.push({ actor: a, side, id });
+    });
+  });
+  applyAll();
+  frame();
+  table();
+  sheets();
+}
+
+function frame() {
+  const b = office ? office.base : new THREE.Vector3();
+  const tall = NEW.PROFILES[S.id].height;
+  if (S.view === 'face') {
+    const y = tall - 0.16;
+    camera.position.set(b.x, b.y + y + 0.02, b.z + 1.35);
+    camera.lookAt(b.x, b.y + y, b.z);
+  } else if (S.view === 'pair') {
+    const y = Math.max(0.35, tall * 0.52);
+    camera.position.set(b.x, b.y + y + 0.15, b.z + Math.max(1.6, tall * 1.55 + 0.4));
+    camera.lookAt(b.x, b.y + y, b.z);
+  } else {
+    camera.position.set(b.x, b.y + 1.5, b.z + 5.4);
+    camera.lookAt(b.x, b.y + 0.95, b.z - 0.4);
+  }
+  labels();
+}
+
+function labels() {
+  const L = $('#labels');
+  L.innerHTML = '';
+  if (S.view !== 'pair' && S.view !== 'face') return;
+  if (!OLD) return;
+  for (const [txt, pos] of [[`${refInfo.ref}`, '25%'], ['this tree', '75%']]) {
+    const s = document.createElement('span');
+    s.textContent = txt; s.style.left = pos; s.style.transform = 'translateX(-50%)';
+    L.appendChild(s);
+  }
+}
+
+function applyAll() {
+  for (const { actor, side } of actors) {
+    actor.play(S.anim);
+    if (side === 'new') {
+      actor.setExpression && actor.setExpression(S.expr);
+      actor.setMouth && actor.setMouth(S.mouth === 'auto' ? null : S.mouth === 'open');
+    } else {
+      // the old rig only knows neutral / talk / shocked / squint
+      const legacy = S.mouth === 'open' ? 'talk' : (S.expr === 'happy' ? 'neutral' : S.expr);
+      actor.setFace(legacy || null);
+    }
+  }
+}
+
+/** Face atlases of the current character, old and new, blown up 3x. */
+function sheets() {
+  const root = $('#sheets');
+  root.innerHTML = '';
+  const seen = new Set();
+  for (const { actor, side, id } of actors) {
+    if (id !== S.id || seen.has(side)) continue;
+    seen.add(side);
+    let img = null;
+    actor.group.traverse((o) => {
+      const u = o.material && o.material.uniforms && o.material.uniforms.uMap;
+      if (!img && o.name === 'face' && u) img = u.value.image;
+    });
+    if (!img && actor.profile.id === 'tuesday') {
+      actor.group.traverse((o) => {
+        const u = o.material && o.material.uniforms && o.material.uniforms.uMap;
+        if (!img && u && u.value.userData && (u.value.userData.faceExprs || u.value.repeat.x === 0.5)) img = u.value.image;
+      });
+    }
+    if (!img) continue;
+    const fig = document.createElement('figure');
+    const k = side === 'old' ? 4 : 3;
+    const c = document.createElement('canvas');
+    c.width = img.width * k; c.height = img.height * k;
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    g.drawImage(img, 0, 0, c.width, c.height);
+    fig.innerHTML = `<figcaption>${side === 'old' ? refInfo.ref : 'this tree'} — ${img.width}x${img.height}</figcaption>`;
+    fig.appendChild(c);
+    root.appendChild(fig);
+  }
+}
+
+function table() {
+  const rows = NEW.CAST_IDS.map((id) => {
+    const n = NEW.spawn(id); const nt = n.triangles(); n.dispose();
+    let ot = null;
+    if (OLD) { const o = OLD.spawn(id); ot = o.triangles(); o.dispose(); }
+    const k = ot ? (nt / ot).toFixed(2) + 'x' : '';
+    return `<tr><td>${id}</td><td>${ot ?? '—'}</td><td>${nt}</td><td class="up">${k}</td></tr>`;
+  });
+  $('#tris').innerHTML = `<tr><th></th><th>${refInfo.ref || 'ref'}</th><th>new</th><th></th></tr>${rows.join('')}`;
+}
+
+/* ---- controls ---- */
+function buttons(el, items, get, set) {
+  const root = $(el);
+  root.innerHTML = '';
+  for (const [value, label] of items) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.className = get() === value ? 'on' : '';
+    b.onclick = () => { set(value); buttons(el, items, get, set); };
+    root.appendChild(b);
+  }
+}
+function ui() {
+  buttons('#who', NEW.CAST_IDS.map((id) => [id, id]), () => S.id, (v) => { S.id = v; if (S.view.startsWith('lineup')) S.view = 'pair'; ui(); build(); });
+  buttons('#view', [['pair', 'pair'], ['face', 'face'], ['lineup-new', 'lineup: new'], ['lineup-old', 'lineup: old']],
+    () => S.view, (v) => { S.view = v; build(); ui(); });
+  const probe = NEW.spawn(S.id);
+  const exprs = probe.expressions ? probe.expressions() : ['neutral', 'shocked', 'squint'];
+  const anims = probe.anims().sort();
+  probe.dispose();
+  buttons('#expr', [[null, 'auto'], ...exprs.map((e) => [e, e])], () => S.expr, (v) => { S.expr = v; applyAll(); });
+  buttons('#mouth', [['auto', 'auto'], ['open', 'open'], ['closed', 'closed']], () => S.mouth, (v) => { S.mouth = v; applyAll(); });
+  if (!anims.includes(S.anim)) S.anim = 'idle';
+  buttons('#anim', anims.map((a) => [a, a]), () => S.anim, (v) => { S.anim = v; applyAll(); });
+  buttons('#opts', [['spin', 'turntable'], ['office', 'office set']], () => (S.spin ? 'spin' : '') || (S.office ? 'office' : ''), async (v) => {
+    if (v === 'spin') { S.spin = !S.spin; if (!S.spin) yaw = 0; }
+    if (v === 'office') { S.office = !S.office; await setOffice(S.office); build(); }
+    const r = $('#opts').children; r[0].className = S.spin ? 'on' : ''; r[1].className = S.office ? 'on' : '';
+  });
+  const r = $('#opts').children; r[0].className = S.spin ? 'on' : ''; r[1].className = S.office ? 'on' : '';
+}
+
+async function setOffice(on) {
+  if (on && !office) {
+    const { createOffice } = await import('/js/sets/office.js');
+    const set = createOffice();
+    const mark = set.marks.bullpen || set.marks[Object.keys(set.marks)[0]];
+    office = { set, base: mark.clone() };
+  }
+  if (office) office.set.group.parent ? (!on && office.set.group.removeFromParent()) : (on && scene.add(office.set.group));
+  studio.visible = !on;
+  if (!on) { office && office.set.group.removeFromParent(); office = null; }
+}
+
+stage.onUpdate((dt, t) => {
+  if (S.spin) yaw += dt * 0.6;
+  for (const { actor } of actors) {
+    actor.group.rotation.y = yaw;
+    actor.update(dt, t);
+  }
+  if (office) office.set.update(dt, t);
+  // the reference cast has its own ps1 module, so its light uniforms need a push too
+  if (oldPs1) oldPs1.updatePS1Lights(scene);
+});
+
+function fit() {
+  const w = $('#stageWrap');
+  stage.resize(w.clientWidth, Math.max(300, window.innerHeight - 42));
+}
+window.addEventListener('resize', fit);
+
+ui();
+build();
+fit();
+stage.start();
+window.__review = { S, build, actors: () => actors, NEW, OLD };
+</script>
+</body>
+</html>

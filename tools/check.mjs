@@ -144,6 +144,8 @@ function readRenderer() {
  * @returns {string|null} absolute path to the binary, or null if none exists
  */
 export function findChromium() {
+  // An explicit binary wins — e.g. a Chrome for Testing build on a Mac.
+  if (process.env.OH_CHROMIUM && fs.existsSync(process.env.OH_CHROMIUM)) return process.env.OH_CHROMIUM;
   const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers'];
   /** @type {Array<{dir:string, n:number}>} */
   const found = [];

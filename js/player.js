@@ -236,6 +236,7 @@ function installBrand() {
 export function initPlayer() {
   const params = new URLSearchParams(location.search);
   const rawId = (params.get('ep') || '').trim();
+  const brandMode = params.get('brand') === '1';
   const posterMode = params.get('poster') === '1'
     || params.get('poster') === 'true'
     || window.__OH_POSTER === true;
@@ -787,6 +788,25 @@ export function initPlayer() {
 
   /* --------------------------------------------------------- poster mode  */
 
+  /**
+   * `&brand=1`: the lockup staged in the office, for the social card. It is the
+   * same geometry and the same framing helper the episode title card uses, so
+   * the shared image cannot drift away from what a viewer actually sees.
+   *
+   * @param {Object} ctx
+   * @returns {Promise<void>}
+   */
+  async function posterBrand(ctx) {
+    const shots = (ctx.office && ctx.office.shots) || {};
+    const shot = shots.windowWall || shots.bullpenWide || shots.establish;
+    if (shot) ctx.d.cut(shot);
+
+    const mod = await import('/js/brand/logo3d.js');
+    const built = mod.createLogo3D({ scale: 1, overlay: true });
+    mod.frameLockup(built, stage.camera, { dist: 3.2, fill: 0.74, yaw: -5, pitch: 5 });
+    stage.scene.add(built.group);
+  }
+
   /** @param {*} err */
   function posterFailed(err) {
     const msg = String(err && err.message ? err.message : err);
@@ -828,7 +848,9 @@ export function initPlayer() {
       const ctx = await buildScene(mine);
       if (!ctx) throw new Error('scene build was cancelled');
 
-      if (typeof ep.poster === 'function') {
+      if (brandMode) {
+        await posterBrand(ctx);
+      } else if (typeof ep.poster === 'function') {
         await ep.poster(ctx);
       } else if (ctx.office && ctx.office.shots && ctx.office.shots.bullpenWide) {
         ctx.d.cut(ctx.office.shots.bullpenWide);

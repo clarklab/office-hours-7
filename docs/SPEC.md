@@ -41,6 +41,7 @@ design space** and CSS-scaled by an integer-ish factor so UI pixels match scene 
 /docs/SPEC.md                  [DONE — do not touch]
 
 /js/brand/logo.js              [ORCHESTRATOR — already written, do not edit]
+/js/brand/logo3d.js            [the lockup as real geometry — staged in the scene]
 /css/brand.css                 [ORCHESTRATOR — already written, do not edit]
 /js/core/ps1.js                [Agent: RENDER]
 /js/core/engine.js             [Agent: RENDER]
@@ -696,9 +697,24 @@ logo is the single loudest signal of that. This supersedes every earlier mention
 - Logo lockup / title cards / hero: **OFFICE HOURS VII** (roman numeral)
 - Sub-brand: **a MULCH production**
 
-## 11.1 The logo module — already written, DO NOT reimplement
-`/js/brand/logo.js` is written and owned by the orchestrator. **Use it. Never hand-roll the
-logo as styled HTML text, and never approximate it with a font + letter-spacing.**
+## 11.1 The logo modules — already written, DO NOT reimplement
+There are two, and they are not interchangeable:
+
+- **`/js/brand/logo3d.js`** is the lockup as real geometry — heavy extruded caps with a
+  chiselled bevel, a brushed-metal gradient down the face, a gold roman numeral and a red
+  rule. This is the primary mark. It is staged **in the scene**, so it takes the same vertex
+  snap, texture swim and dither as everything else; a flat overlay cannot. `createLogo3D()`
+  builds it and `frameLockup()` sizes it to the 384x216 frame — use that helper rather than
+  working out a scale, so the title card and the social card stay identical.
+- **`/js/brand/logo.js`** draws the flat line-art lockup into a 2D canvas. It is still the
+  favicon and the mark, and it is the fallback wherever the 3D one cannot run.
+
+**Use them. Never hand-roll the logo as styled HTML text, and never approximate it with a
+font + letter-spacing.** The glyphs in `logo3d.js` are polygons for the same reason
+everything else here is procedural: there are no font files in this project.
+
+`/assets/og.png` and `/assets/logo.png` are shot from the 3D lockup by
+`node tools/shoot.mjs brand`. Regenerate them rather than editing them.
 
 ```js
 /**

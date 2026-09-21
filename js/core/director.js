@@ -187,6 +187,14 @@ export function createDirector(stage, ui, options = {}) {
   /* --------------------------------------------------------- cancellation */
 
   let isCancelled = false;
+  /**
+   * Teardown for anything the director parks in the scene itself (the title
+   * lockup, so far). `cancel()` runs these: without it, cancelling during a
+   * title card would leave the logo floating in the office for the rest of the
+   * episode, because nothing else owns that object.
+   * @type {Set<() => void>}
+   */
+  const sceneProps = new Set();
   /** @type {() => void} */
   let fireCancel = () => {};
   /** @type {Promise<void>} */
@@ -748,6 +756,9 @@ export function createDirector(stage, ui, options = {}) {
     targetActor = null;
     lastCursor = null;
 
+    for (const drop of Array.from(sceneProps)) safe(drop);
+    sceneProps.clear();
+
     callUI('targetCursor', null);
     callUI('setSkippable', false);
 
@@ -1270,11 +1281,77 @@ export function createDirector(stage, ui, options = {}) {
    * @param {Object} [o] TitleOpts: `{title, subtitle, ms, logo}`
    * @returns {Promise<void>}
    */
-  function title(o = {}) {
+  async function title(o = {}) {
     const opts = Object.assign({}, o);
     if (opts.title === undefined && opts.logo === undefined) opts.logo = true;
     if (opts.title === undefined) opts.title = '';
-    return guardWith(callUI('title', opts), num(opts.ms, 2600) + 4000).then(() => {});
+
+    // The lockup is real geometry parked in front of the camera rather than a
+    // picture pasted over the frame, so it takes the same vertex snap, texture
+    // swim and dither as the office behind it. A 2D overlay would sit outside
+    // the pipeline and look like a sticker on the lens.
+    if (opts.logo && !opts.flat) {
+      const staged = await stageLockup(num(opts.ms, 2600));
+      if (staged) {
+        opts.logo = false;
+        opts.scene = true;
+        const done = guardWith(callUI('title', opts), num(opts.ms, 2600) + 4000);
+        await done.catch(() => {});
+        staged.remove();
+        return;
+      }
+    }
+
+    await guardWith(callUI('title', opts), num(opts.ms, 2600) + 4000).catch(() => {});
+  }
+
+  /**
+   * Places the 3D lockup in front of the camera for `ms`, sized to the frame
+   * and drifting very slightly toward the viewer.
+   *
+   * Returns null if the module will not load, which leaves `title()` to fall
+   * back to the flat card rather than showing nothing.
+   *
+   * @param {number} ms
+   * @returns {Promise<{remove:()=>void}|null>}
+   */
+  async function stageLockup(ms) {
+    let mod;
+    try {
+      mod = await import('/js/brand/logo3d.js');
+    } catch (err) {
+      warn('title: 3D lockup unavailable, falling back to the flat card');
+      return null;
+    }
+    if (isCancelled || !camera || !stage.scene) return null;
+
+    // overlay: the lockup sits 3.2m from the camera, which on a tight shot is
+    // inside a desk or a wall. Drawing it over the depth buffer keeps it
+    // readable from any set-up without moving the episode's camera.
+    const built = mod.createLogo3D({ scale: 1, overlay: true });
+    const g = built.group;
+
+    const place = (push) => mod.frameLockup(built, camera, { dist: 3.2, fill: 0.70, push });
+    place(0);
+    stage.scene.add(g);
+
+    // A slow drift in. PS1 title cards never sat perfectly still.
+    let t = 0;
+    const stop = stage.onUpdate((dt) => {
+      t += dt;
+      place(Math.min(0.14, t * 0.06));
+    });
+
+    let removed = false;
+    const remove = () => {
+      if (removed) return;
+      removed = true;
+      safe(stop);
+      if (g.parent) g.parent.remove(g);
+      built.dispose();
+    };
+    sceneProps.add(remove);
+    return { remove: () => { sceneProps.delete(remove); remove(); } };
   }
 
   /**

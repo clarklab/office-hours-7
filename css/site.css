@@ -1221,6 +1221,17 @@ body[data-frame='xs'] .w-log .line { display: block; }
   .w-log { display: none; }
 }
 
+/* --- hero plate ------------------------------------------------------- */
+
+/* The rendered lockup. Nearest-neighbour so the 384x216 pixel grid it was shot
+   at survives being scaled up, rather than being smoothed into mush. */
+.hero-plate {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
 /* --- reading speed control ------------------------------------------- */
 
 .speedbar {

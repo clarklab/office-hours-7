@@ -33,7 +33,8 @@ node tools/shoot.mjs       # regenerate episode thumbnails
 
 ```
 vendor/three.module.js   three.js r160, import-map aliased to 'three'
-js/brand/logo.js         the OFFICE HOURS VII logo, drawn procedurally
+js/brand/logo.js         the flat line-art lockup, drawn procedurally
+js/brand/logo3d.js       the lockup as real geometry, staged in the scene
 js/core/ps1.js           PS1 material + post pipeline
 js/core/engine.js        stage, rAF loop, resize
 js/core/audio.js         voices, SFX, music

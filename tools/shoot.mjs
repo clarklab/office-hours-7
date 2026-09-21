@@ -192,11 +192,81 @@ async function shoot(ctx, id) {
 }
 
 /**
+ * Shoots the brand plate: the 3D lockup staged in the office, via the player's
+ * `&brand=1` poster mode.
+ *
+ * This writes the social card from the same geometry and the same framing
+ * helper the episode title card uses, so the image someone sees in a link
+ * preview cannot drift away from the one the show actually opens with.
+ *
+ * `/assets/og.png` is 1200x630 (the Open Graph size, a wider aspect than the
+ * 16:9 buffer, so the source is scaled to cover and trimmed top and bottom).
+ * `/assets/logo.png` keeps the buffer's own 16:9 for the gallery hero.
+ *
+ * @param {Object} ctx
+ * @returns {Promise<{id:string, ok:boolean, note:string}>}
+ */
+async function shootBrand(ctx) {
+  const url = `${ctx.base}/watch.html?ep=ep1&poster=1&brand=1`;
+  const page = await ctx.browser.newPage({ viewport: { width: 1280, height: 720 } });
+  /** @type {string[]} */
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(String((e && e.message) || e)));
+  page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
+
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: ctx.wait });
+    await page.waitForFunction(
+      () => window.__OH_POSTER_READY === true
+        || document.documentElement.getAttribute('data-oh-poster') === 'ready'
+        || document.documentElement.getAttribute('data-oh-poster') === 'error',
+      { timeout: ctx.wait },
+    );
+    const state = await page.evaluate(
+      () => document.documentElement.getAttribute('data-oh-poster'),
+    );
+    if (state === 'error') return { id: 'brand', ok: false, note: 'poster reported an error' };
+
+    const shots = await page.evaluate(() => {
+      const src = document.getElementById('scene');
+      if (!src) return null;
+      /** Nearest-neighbour scale-to-cover, so the pixel grid survives. */
+      const plate = (w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const g = c.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        const k = Math.max(w / 384, h / 216);
+        const dw = Math.round(384 * k);
+        const dh = Math.round(216 * k);
+        g.drawImage(src, Math.round((w - dw) / 2), Math.round((h - dh) / 2), dw, dh);
+        return c.toDataURL('image/png');
+      };
+      return { og: plate(1200, 630), logo: plate(1152, 648) };
+    });
+    if (!shots) return { id: 'brand', ok: false, note: 'no canvas' };
+
+    const dir = path.join(ROOT, 'assets');
+    await fsp.mkdir(dir, { recursive: true });
+    for (const [name, data] of [['og.png', shots.og], ['logo.png', shots.logo]]) {
+      await fsp.writeFile(path.join(dir, name), Buffer.from(data.split(',')[1], 'base64'));
+    }
+    const note = problems.length ? `written, with ${problems.length} console problem(s)` : 'og.png 1200x630, logo.png 1152x648';
+    return { id: 'brand', ok: true, note };
+  } catch (err) {
+    return { id: 'brand', ok: false, note: String((err && err.message) || err) };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+/**
  * @param {string[]} [argv=process.argv.slice(2)]
  * @returns {Promise<number>} process exit code
  */
 export async function main(argv = process.argv.slice(2)) {
   const ids = [];
+  let wantBrand = false;
   let width = DEFAULT_WIDTH;
   let wait = 12000;
   let out = path.join(ROOT, 'assets', 'thumbs');
@@ -206,14 +276,17 @@ export async function main(argv = process.argv.slice(2)) {
     else if (a.startsWith('--wait=')) wait = Math.max(500, Number(a.slice(7)) || 12000);
     else if (a.startsWith('--out=')) out = path.resolve(a.slice(6));
     else if (a === '-h' || a === '--help') {
-      console.log('node tools/shoot.mjs [ep1 ep2 ...] [--width=1152] [--wait=12000] [--out=DIR]');
+      console.log('node tools/shoot.mjs [ep1 ep2 ... | brand] [--width=1152] [--wait=12000] [--out=DIR]');
       return 0;
-    } else if (/^ep\d+$/.test(a)) ids.push(a);
+    } else if (a === 'brand') wantBrand = true;
+    else if (/^ep\d+$/.test(a)) ids.push(a);
     else console.log(`(ignoring unknown argument ${a})`);
   }
 
   const episodes = ids.length ? ids : EPISODE_IDS;
-  console.log(`OFFICE HOURS VII — thumbnails -> ${out}`);
+  console.log(wantBrand
+    ? `OFFICE HOURS VII — brand plate -> ${path.join(ROOT, 'assets')}`
+    : `OFFICE HOURS VII — thumbnails -> ${out}`);
 
   const server = await start({ port: 0 });
   let browser;
@@ -228,7 +301,8 @@ export async function main(argv = process.argv.slice(2)) {
   const ctx = { browser, base: server.url, width, wait, out };
   const results = [];
   try {
-    for (const id of episodes) results.push(await shoot(ctx, id));
+    if (wantBrand) results.push(await shootBrand(ctx));
+    else for (const id of episodes) results.push(await shoot(ctx, id));
   } finally {
     await browser.close().catch(() => {});
     await server.close().catch(() => {});

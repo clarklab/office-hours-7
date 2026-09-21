@@ -49,8 +49,8 @@ export const PALETTE = {
   leaf: 0x5f7f48,
   leafDead: 0x7a6538,
   soil: 0x4a3c30,
-  mulchGreen: 0x2f7d5e,
-  mulchNavy: 0x1d2a4a,
+  munchGreen: 0x2f7d5e,
+  munchNavy: 0x1d2a4a,
   warn: 0x9a3b32,
   amber: 0xb98a3a,
 };
@@ -348,7 +348,7 @@ export function whiteboardScrawlTexture() {
     c.stroke();
     caps(c, 'USERS', 25, 29, 8, '#2f5aa0');
     caps(c, '???', 65, 29, 8, '#2f5aa0');
-    caps(c, 'MULCH', 104, 29, 8, '#2f5aa0');
+    caps(c, 'MUNCH', 104, 29, 8, '#2f5aa0');
     caps(c, 'THE EVERYTHING LAYER', 8, 10, 9, '#3d4247', 'bold', 'left');
     c.strokeStyle = '#8c3a30';
     c.lineWidth = 2;
@@ -361,25 +361,33 @@ export function whiteboardScrawlTexture() {
 }
 
 /**
- * The MULCH, Inc. corporate mark. Deliberately ugly: a bevelled leaf blob,
- * a swoosh, a gradient wordmark and a tagline nobody can explain.
+ * The MUNCH, Inc. corporate mark. Deliberately ugly: a bevelled green blob
+ * with a bite taken out of it, a swoosh, a gradient wordmark and a tagline
+ * nobody can explain.
  * This is NOT the show logo (SPEC 11.3).
  * @returns {THREE.Texture}
  */
-export function mulchLogoTexture() {
-  if (TEX.mulch) return TEX.mulch;
-  TEX.mulch = makeTexture(128, 64, (c, w, h) => {
+export function munchLogoTexture() {
+  if (TEX.munch) return TEX.munch;
+  TEX.munch = makeTexture(128, 64, (c, w, h) => {
     rect(c, '#dfdcd2', 0, 0, w, h);
     rect(c, '#cfccc0', 0, h - 4, w, 4);
-    // leaf blob
+    // the blob, with a highlight
     c.fillStyle = '#2f7d5e';
     c.beginPath();
-    c.ellipse(22, 28, 14, 16, -0.5, 0, Math.PI * 2);
+    c.arc(22, 28, 15, 0, Math.PI * 2);
     c.fill();
     c.fillStyle = '#4fae84';
     c.beginPath();
-    c.ellipse(19, 24, 7, 9, -0.5, 0, Math.PI * 2);
+    c.ellipse(18, 23, 6, 8, -0.5, 0, Math.PI * 2);
     c.fill();
+    // ...and the bite out of it: three scallops punched from the top right
+    c.fillStyle = '#dfdcd2';
+    for (const [bx, by] of [[33, 15], [37, 23], [35, 31]]) {
+      c.beginPath();
+      c.arc(bx, by, 5, 0, Math.PI * 2);
+      c.fill();
+    }
     // obligatory swoosh
     c.strokeStyle = '#8fc9a8';
     c.lineWidth = 3;
@@ -396,13 +404,13 @@ export function mulchLogoTexture() {
     c.font = 'bold 22px Arial, Helvetica, sans-serif';
     c.textAlign = 'left';
     c.textBaseline = 'middle';
-    c.fillText('MULCH', 45, 27);
+    c.fillText('MUNCH', 45, 27);
     c.fillStyle = g;
-    c.fillText('MULCH', 44, 26);
+    c.fillText('MUNCH', 44, 26);
     caps(c, 'THE EVERYTHING LAYER', 44, 43, 7, '#5d6470', 'bold', 'left');
     caps(c, 'INC.', 44, 52, 7, '#8b9199', 'bold', 'left');
   });
-  return TEX.mulch;
+  return TEX.munch;
 }
 
 /**
@@ -940,6 +948,56 @@ export function projectorScreen(o = {}) {
   g.add(sheet);
   g.add(boxMesh(w, 0.03, 0.04, { color: PALETTE.metalDark }, 0, top - 0.06 - h, 0.03));
   g.userData.sheet = sheet;
+  const blank = sheet.material;
+  /**
+   * Projects an image onto the sheet (a slide from `/js/sets/slides.js`), or
+   * turns the projector off with `null`. The image is lifted a little toward
+   * unlit so it reads as projected light, not paint.
+   * @param {THREE.Texture|null} tex
+   */
+  g.userData.setScreen = (tex) => {
+    sheet.material = tex
+      ? ps1Material({ map: tex, color: 0xffffff, emissive: 0x2a2a2a, jitter: 0.9 })
+      : blank;
+  };
+  return g;
+}
+
+/**
+ * A hamburger with a birthday candle stuck in it: sesame bun, patty, cheese,
+ * lettuce, and a candle whose flame flickers on its own. Origin at the base of
+ * the bottom bun; about 0.14m wide. `userData.setLit(false)` blows it out.
+ * @returns {THREE.Group}
+ */
+export function birthdayBurger() {
+  const g = new THREE.Group();
+  g.name = 'birthdayBurger';
+  g.add(cylMesh(0.065, 0.06, 0.03, 8, { color: 0xc98f4e }, 0, 0.015, 0));
+  g.add(cylMesh(0.07, 0.07, 0.012, 8, { color: 0x6fae3e }, 0, 0.035, 0));
+  g.add(cylMesh(0.068, 0.068, 0.028, 8, { color: 0x5a3322 }, 0, 0.054, 0));
+  const cheese = boxMesh(0.12, 0.008, 0.12, { color: 0xf0b83a }, 0, 0.071, 0);
+  cheese.rotation.y = Math.PI / 4;
+  g.add(cheese);
+  g.add(cylMesh(0.05, 0.068, 0.045, 8, { color: 0xd8a05a }, 0, 0.096, 0));
+  // sesame seeds
+  for (const [x, z] of [[-0.025, 0.01], [0.02, -0.02], [0.01, 0.028], [-0.01, -0.03]]) {
+    g.add(boxMesh(0.008, 0.004, 0.012, { color: 0xf2e8cc }, x, 0.12, z));
+  }
+  // the candle, with red stripes, and a flame
+  g.add(cylMesh(0.007, 0.007, 0.07, 6, { color: 0x6fb7e0 }, 0, 0.15, 0));
+  g.add(cylMesh(0.0075, 0.0075, 0.01, 6, { color: 0xe05050 }, 0, 0.14, 0));
+  g.add(cylMesh(0.0075, 0.0075, 0.01, 6, { color: 0xe05050 }, 0, 0.165, 0));
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.035, 4),
+    ps1Material({ color: 0xffd060, emissive: 0xff9020, unlit: 1 }));
+  flame.position.set(0, 0.205, 0);
+  flame.onBeforeRender = () => {
+    const k = performance.now() / 1000;
+    flame.scale.set(1 + 0.15 * Math.sin(k * 23), 1 + 0.25 * Math.sin(k * 17 + 1), 1);
+    flame.updateMatrixWorld();
+  };
+  g.add(flame);
+  g.userData.flame = flame;
+  g.userData.setLit = (on) => { flame.visible = !!on; };
   return g;
 }
 
@@ -964,7 +1022,7 @@ export function fridge(o = {}) {
   g.add(boxMesh(w - 0.04, 0.02, 0.02, { color: PALETTE.metalDark }, 0, h * 0.63, d / 2 + 0.012));
   // three magnets with actual thickness so the door is not perfectly flat
   g.add(boxMesh(0.06, 0.05, 0.02, { color: PALETTE.warn }, -0.18, 0.62, d / 2 + 0.018));
-  g.add(boxMesh(0.05, 0.05, 0.02, { color: PALETTE.mulchGreen }, 0.12, 0.5, d / 2 + 0.018));
+  g.add(boxMesh(0.05, 0.05, 0.02, { color: PALETTE.munchGreen }, 0.12, 0.5, d / 2 + 0.018));
   g.add(boxMesh(0.05, 0.05, 0.02, { color: PALETTE.amber }, 0.22, 0.86, d / 2 + 0.018));
   return g;
 }
@@ -1400,20 +1458,20 @@ export function wallSegment(o = {}) {
 }
 
 /**
- * The MULCH, Inc. logo wall: a raised panel with the corporate mark on it,
+ * The MUNCH, Inc. logo wall: a raised panel with the corporate mark on it,
  * plus the mandatory uplight strip. Faces **+Z**; origin on the floor.
  * @param {Object} [o] @param {number} [o.w=2.6] @param {number} [o.h=1.3] @param {number} [o.y=1.55]
  * @returns {THREE.Group}
  */
-export function mulchLogoWall(o = {}) {
+export function munchLogoWall(o = {}) {
   const w = o.w === undefined ? 2.6 : o.w;
   const h = o.h === undefined ? 1.3 : o.h;
   const y = o.y === undefined ? 1.55 : o.y;
   const g = new THREE.Group();
-  g.name = 'mulchLogoWall';
+  g.name = 'munchLogoWall';
   g.add(boxMesh(w + 0.16, h + 0.16, 0.06, { color: PALETTE.beigeDark, jitter: 0.9 }, 0, y, 0.03));
   const face = new THREE.Mesh(planeGeo(w, h), ps1Material({
-    map: mulchLogoTexture(), color: 0xffffff, emissive: 0x2a2c26, jitter: 0.9,
+    map: munchLogoTexture(), color: 0xffffff, emissive: 0x2a2c26, jitter: 0.9,
   }));
   face.position.set(0, y, 0.065);
   g.add(face);

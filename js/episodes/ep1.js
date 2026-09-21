@@ -1,7 +1,7 @@
 /**
  * OFFICE HOURS VII — EPISODE ONE: "STANDUP".
  *
- * The pilot. It has one job: establish MULCH, Inc. and hand you all five humans
+ * The pilot. It has one job: establish MUNCH, Inc. and hand you all five humans
  * so episodes two and three can start running. Cold open on the floor, five
  * FF7 name-card intros shot in each character's own territory, everybody
  * converges on the meeting room, and the standup collapses into overlapping
@@ -52,7 +52,7 @@ const CAM = {
   bradLow: { pos: [-2.55, 0.62, 3.35], look: [-3.55, 1.60, 1.95], fov: 60 },
   /** Over the monitor at Dez, mid-call. The partition sits just under frame. */
   dezDesk: { pos: [1.45, 1.50, -2.60], look: [0.05, 1.36, -4.45], fov: 44 },
-  /** Reception, close: Kiki left of frame, MULCH wall behind, boxes stack right. */
+  /** Reception, close: Kiki left of frame, MUNCH wall behind, boxes stack right. */
   reception: { pos: [-10.45, 1.40, -2.00], look: [-11.75, 1.47, -2.90], fov: 38 },
   /** Carpet height, close enough to see he is sitting on it. */
   roopFloor: { pos: [-1.00, 0.60, -0.55], look: [-1.58, 0.95, -1.90], fov: 50 },
@@ -212,7 +212,7 @@ async function run(ctx) {
 
     await d.title({ logo: true, subtitle: 'EPISODE ONE — "STANDUP"', ms: 1700 });
 
-    await d.say(null, 'MULCH, INC.\nThe Everything Layer.', { maxWidth: WIDE_BOX, hold: 520 });
+    await d.say(null, 'MUNCH, INC.\nThe Everything Layer.', { maxWidth: WIDE_BOX, hold: 520 });
     await d.say(null, 'Eleven days of runway.\nNobody has said that out loud.', {
       maxWidth: WIDE_BOX,
       hold: 600,

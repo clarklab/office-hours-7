@@ -37,7 +37,7 @@ const HOOKS = {
   kiki: 'Shortest, roundest hair, headset mic boom, forever tangled in the cord.',
   roop: 'Hood up, shoulders down, cargo shorts, socks and sandals, under a desk.',
   marge: 'Ramrod straight, tight bun, enormous round glasses, one red ledger.',
-  tuesday: 'Scruffy and tan. One floppy ear, one up. Tail keeps perfect time.',
+  tuesday: 'Old dapple dachshund. Three legs, one inside-out ear, zero chill.',
 };
 
 /**
@@ -177,39 +177,45 @@ function seated(c, x, baseY, h, rim) {
 }
 
 /**
- * The dog. Body slab, four stumps, a wedge head, one ear up.
+ * The dog: a long, low dachshund slab on stubby legs — one front leg, because
+ * she only has the one — a head held high with a long snout, a floppy ear and
+ * a tail up like a flag.
  *
  * @param {CanvasRenderingContext2D} c
  * @param {number} x @param {number} groundY @param {number} h @param {string} rim
  */
 function dog(c, x, groundY, h, rim) {
   const body = '#080d14';
-  const bw = h * 1.18;
-  const legH = h * 0.30;
-  slab(c, x - bw / 2, groundY - h * 0.82, bw, h * 0.52, body, rim, 0.85, 0.45);
-  slab(c, x - bw * 0.40, groundY - legH, h * 0.18, legH, body, rim, 0.12, 0.1);
-  slab(c, x + bw * 0.22, groundY - legH, h * 0.18, legH, body, rim, 0.12, 0.1);
-  slab(c, x + bw * 0.22, groundY - h, h * 0.42, h * 0.40, body, rim, 0.92, 0.5);
-  // one ear up, one floppy
+  const bw = h * 1.9;
+  const legH = h * 0.24;
+  const top = groundY - legH - h * 0.34;
+  slab(c, x - bw / 2, top, bw, h * 0.36, body, rim, 0.85, 0.45);
+  // one back leg, one front leg (the only one)
+  slab(c, x - bw * 0.42, groundY - legH - 2, h * 0.16, legH + 2, body, rim, 0.12, 0.1);
+  slab(c, x + bw * 0.30, groundY - legH - 2, h * 0.16, legH + 2, body, rim, 0.12, 0.1);
+  // neck and head, carried high
+  slab(c, x + bw * 0.34, groundY - h * 0.86, h * 0.26, h * 0.34, body, rim, 0.92, 0.5);
+  // the long snout
+  slab(c, x + bw * 0.34 + h * 0.22, groundY - h * 0.80, h * 0.34, h * 0.16, body, rim, 0.92, 0.5);
+  // the floppy ear, hanging
   c.fillStyle = body;
   c.beginPath();
-  c.moveTo(x + bw * 0.24, groundY - h);
-  c.lineTo(x + bw * 0.30, groundY - h * 1.30);
-  c.lineTo(x + bw * 0.46, groundY - h * 0.97);
+  c.moveTo(x + bw * 0.36, groundY - h * 0.84);
+  c.lineTo(x + bw * 0.30, groundY - h * 0.50);
+  c.lineTo(x + bw * 0.42, groundY - h * 0.56);
   c.closePath();
   c.fill();
-  // tail, keeping perfect time
-  c.fillStyle = body;
+  // tail, up like a flag
   c.beginPath();
-  c.moveTo(x - bw * 0.48, groundY - h * 0.72);
-  c.lineTo(x - bw * 0.76, groundY - h * 1.02);
-  c.lineTo(x - bw * 0.62, groundY - h * 0.62);
+  c.moveTo(x - bw * 0.48, top + 2);
+  c.lineTo(x - bw * 0.66, top - h * 0.30);
+  c.lineTo(x - bw * 0.56, top + h * 0.06);
   c.closePath();
   c.fill();
 }
 
 /**
- * Draws one episode's poster plate: the MULCH office in silhouette against its window
+ * Draws one episode's poster plate: the MUNCH office in silhouette against its window
  * wall, staged differently for each episode and graded with that episode's accent.
  *
  * This is the card artwork until `/assets/thumbs/epN.png` exists, and it is also the
@@ -408,6 +414,31 @@ function drawPlate(c, ep) {
     c.fillStyle = A;
     c.fillRect(cx - 46, 104, 92, 1);
     c.globalAlpha = 1;
+  } else if (ep.id === 'ep4') {
+    // GOOD GIRL: the company in a row, the dog, and a hamburger with a candle in it.
+    for (const [x, g, h] of [[58, 110, 44], [96, 106, 40], [160, 106, 40], [198, 110, 44]]) {
+      figure(c, x, g, h, A);
+    }
+    figure(c, 128, 104, 38, A);
+    dog(c, 118, 128, 20, A);
+    // the burger: bun, patty, bun, and a candle with a flame in the accent
+    slab(c, 150, 124, 16, 4, '#141c26', A, 0.4, 0.2);
+    slab(c, 149, 120, 18, 4, '#0c1219', A, 0.4, 0.2);
+    slab(c, 150, 115, 16, 5, '#141c26', A, 0.6, 0.3);
+    c.fillStyle = '#c3d1e0';
+    c.fillRect(157.2, 106, 1.8, 9);
+    c.fillStyle = A;
+    c.globalAlpha = 0.35;
+    c.beginPath();
+    c.arc(158, 103.5, 5, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
+    c.beginPath();
+    c.moveTo(158, 100);
+    c.lineTo(160, 105);
+    c.lineTo(156, 105);
+    c.closePath();
+    c.fill();
   } else {
     // TUESDAY: a dog, a lot of carpet, and a target cursor nobody agreed on.
     // two desks, on the carpet where desks live
@@ -528,7 +559,7 @@ export function mountHero(slot) {
     const c = next.getContext('2d');
     if (!c) return;
     c.scale(dpr, dpr);
-    drawFullLogo(c, w, h, { subtitle: 'a MULCH production', glow: 0.42, seed: 7 });
+    drawFullLogo(c, w, h, { subtitle: 'a MUNCH production', glow: 0.42, seed: 7 });
     // The procedural lockup above is the fallback. What normally shows is the
     // rendered plate: the same 3D lockup the episodes open with, shot in the
     // office by `tools/shoot.mjs brand`, so the hero and the title card cannot
@@ -537,7 +568,7 @@ export function mountHero(slot) {
     if (!heroPlate) {
       const img = new Image();
       img.decoding = 'async';
-      img.alt = 'OFFICE HOURS VII — a MULCH production';
+      img.alt = 'OFFICE HOURS VII — a MUNCH production';
       img.className = 'hero-plate';
       img.addEventListener('load', () => { heroPlate = img; draw(true); });
       img.src = '/assets/logo.png';

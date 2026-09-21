@@ -127,6 +127,28 @@ ${castRows}
 <p>Everything an episode may call on <code>d</code>.</p>
 ${chips(v.verbs)}
 
+<h3>Music <span class="count">(${Object.keys(v.music || {}).length})</span></h3>
+<p><code>d.music('id')</code> crossfades to a bed; <code>d.music(null)</code> stops. Pick by mood.</p>
+<table><tbody>
+${Object.entries(v.music || {}).map(([id, mood]) => `<tr><td><code>${esc(id)}</code></td><td>${esc(mood)}</td></tr>`).join('\n')}
+</tbody></table>
+
+<h3>Sound effects <span class="count">(${(v.sfx || []).length})</span></h3>
+<p><code>d.sfx('id')</code>, or on a line: <code>d.say(a, text, { sfx: 'rimshot', sfxAt: 'end' })</code>.</p>
+${chips(v.sfx || [])}
+
+<h3>Slides <span class="count">(${(v.slides || []).length})</span></h3>
+<p><code>d.slide('projector' | 'meetingBoard' | 'whiteboard', 'id', opts)</code> puts a deck slide on a surface.</p>
+<table><tbody>
+${(v.slides || []).map((id) => `<tr><td><code>${esc(id)}</code></td><td>${esc((v.slideInfo || {})[id] || '')}</td></tr>`).join('\n')}
+</tbody></table>
+
+<h3>Faces</h3>
+<p>Every character has four expressions — <code>neutral</code>, <code>happy</code>, <code>shocked</code>, <code>squint</code> — and a mouth that flaps while they talk. <code>d.expression(actor, 'squint')</code> holds one; <code>d.mouth(actor, true)</code> holds the mouth open. <code>null</code> hands either back to the animation.</p>
+
+<h3>Guest stars</h3>
+<p>${(v.guests || []).map((g) => `<code>${esc(g)}</code>`).join(', ') || 'none'} — built only for episodes whose registry entry lists them in <code>guests</code>.</p>
+
 <h2>The file's shape</h2>
 <pre><code>/**
  * OFFICE HOURS VII &mdash; EPISODE FOUR: "TITLE".
@@ -232,6 +254,7 @@ export async function main(argv = process.argv.slice(2)) {
     cast: v.cast,
     anims: v.anims,
     profiles: v.profiles,
+    slides: v.slides,
     generated: new Date().toISOString().slice(0, 10),
   }, null, 2)}\n`, 'utf8');
 

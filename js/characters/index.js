@@ -84,13 +84,33 @@ export const PROFILES = {
     role: 'UNAUTHORISED DOG',
     color: '#c98a4b',
     voice: 'tuesday',
-    stats: ['LV ?', 'HP ???', 'GOOD 10/10'],
-    height: 0.62,
+    stats: ['LV 14', 'LEGS 3/4', 'GOOD 10/10'],
+    height: 0.45,
+  },
+  gary: {
+    id: 'gary',
+    name: 'GARY',
+    fullName: 'GARY STRAUB',
+    role: 'THE CLIENT',
+    color: '#5fd0c4',
+    voice: 'gary',
+    stats: ['LV 58', 'HP 1985/1985', 'READ THE ROOM 0'],
+    height: 1.80,
+    guest: true,
   },
 };
 
 /** Cast ids in billing order. @type {string[]} */
 export const CAST_IDS = ['brad', 'dez', 'kiki', 'roop', 'marge', 'tuesday'];
+
+/**
+ * Guest stars: spawnable by id, but NOT part of the standing cast. They are not
+ * built for every episode (they would stand at the origin of every scene they
+ * are not in), not in the gallery cast strip and not offered to viewer
+ * episodes. An episode books one by listing it in its registry entry's `guests`.
+ * @type {string[]}
+ */
+export const GUEST_IDS = ['gary'];
 
 /** id -> module path and the factory it exports. @type {Object<string, string[]>} */
 const SOURCES = {
@@ -100,6 +120,7 @@ const SOURCES = {
   roop: ['/js/characters/roop.js', 'createRoop'],
   marge: ['/js/characters/marge.js', 'createMarge'],
   tuesday: ['/js/characters/tuesday.js', 'createTuesday'],
+  gary: ['/js/characters/gary.js', 'createGary'],
 };
 
 /**
@@ -185,13 +206,15 @@ export const CAST = {
   roop: () => factoryFor('roop')(),
   /** @returns {Actor} MARGUERITE OKONKWO — finance, bun, glasses, red ledger. */
   marge: () => factoryFor('marge')(),
-  /** @returns {Actor} TUESDAY — an unauthorised dog. */
+  /** @returns {Actor} TUESDAY — an unauthorised dog: an old, three-legged dapple dachshund. */
   tuesday: () => factoryFor('tuesday')(),
+  /** @returns {Actor} GARY STRAUB — guest star; the client. Mullet, moustache, "HEY!" */
+  gary: () => factoryFor('gary')(),
 };
 
 /**
  * Builds one character. Synchronous; requires {@link loadCast} to have resolved.
- * @param {string} id 'brad'|'dez'|'kiki'|'roop'|'marge'|'tuesday'
+ * @param {string} id 'brad'|'dez'|'kiki'|'roop'|'marge'|'tuesday', or a guest ('gary')
  * @returns {Actor}
  */
 export function spawn(id) {

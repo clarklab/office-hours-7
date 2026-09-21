@@ -567,9 +567,12 @@ export function initPlayer() {
       const mod = await import('/js/characters/index.js');
 
       // The character builders live behind a dynamic import so the gallery can read
-      // PROFILES without three. spawnAll() loads them and builds the whole cast.
+      // PROFILES without three. spawnAll() loads them and builds the whole cast,
+      // plus any guest stars this episode's registry entry books.
       if (typeof mod.spawnAll === 'function') {
-        cast = await mod.spawnAll();
+        const guests = (meta && Array.isArray(meta.guests) ? meta.guests : [])
+          .filter((id) => !mod.GUEST_IDS || mod.GUEST_IDS.includes(id));
+        cast = await mod.spawnAll(mod.CAST_IDS ? mod.CAST_IDS.concat(guests) : undefined);
       } else {
         if (typeof mod.loadCast === 'function') await mod.loadCast();
         for (const id of Object.keys(mod.CAST || mod.PROFILES || {})) {
@@ -616,6 +619,7 @@ export function initPlayer() {
     director = dir.createDirector(view, uiView, {
       shots: office ? office.shots : undefined,
       marks: office ? office.marks : undefined,
+      props: office ? office.props : undefined,
       bounds,
       host: uiHost,
     });

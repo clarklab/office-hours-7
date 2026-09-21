@@ -3,7 +3,7 @@
  *
  * A dog is in the office. Nobody knows how. The whole thing is staged as a
  * JRPG random encounter: the battle HUD slides up, the amber cursor drops on
- * the dog, and five adults take a command menu to a labrador.
+ * the dog, and five adults take a command menu to a dachshund.
  *
  * The humans are ridiculous. The dog is not. That is the entire joke.
  *

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio Audition</title>
+<style>
+  :root {
+    --bg: #111318; --panel: #1a1d24; --line: #2a2f3a; --text: #e6e8ee; --dim: #8a90a0;
+    --accent: #7fd1b9; --on: #2f5d50; --warn: #e8b45a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 48px; background: var(--bg); color: var(--text);
+    font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  main { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: 0.04em; }
+  h2 { font-size: 13px; margin: 28px 0 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+  p.note { color: var(--dim); margin: 0 0 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .status { color: var(--dim); }
+  .status b { color: var(--accent); font-weight: normal; }
+  button, input, select {
+    font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 10px;
+  }
+  button { cursor: pointer; text-align: left; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.on { background: var(--on); border-color: var(--accent); }
+  #start { background: var(--accent); color: #0b1a15; border-color: var(--accent); font-weight: bold; }
+  .grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .grid.music { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .grid.music button { display: flex; flex-direction: column; gap: 3px; min-height: 64px; }
+  .grid.music .id { font-weight: bold; }
+  .grid.music .mood { color: var(--dim); font-size: 12px; }
+  .grid.music button.on .mood { color: var(--text); }
+  label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  input[type=text] { flex: 1 1 320px; min-width: 0; }
+  input[type=range] { padding: 0; }
+  body.locked section { opacity: 0.4; pointer-events: none; }
+</style>
+</head>
+<body class="locked">
+<main>
+  <h1>OFFICE HOURS VII &mdash; audio audition</h1>
+  <p class="note">Dev tool. Everything here is synthesised live by <code>js/core/audio.js</code>. Click START first (browsers need a gesture to open audio).</p>
+
+  <div class="bar">
+    <button id="start" type="button">START AUDIO</button>
+    <button id="stop" type="button">Stop music</button>
+    <label><input id="mute" type="checkbox"> mute</label>
+    <label>music gain <input id="mgain" type="range" min="0" max="1.5" step="0.05" value="1"> <span id="mgainv">1.00</span></label>
+    <span class="status" id="status">audio: <b>not started</b></span>
+  </div>
+
+  <section>
+    <h2>Music cues (<span id="mcount"></span>) &mdash; click to play, click again to stop</h2>
+    <div class="grid music" id="music"></div>
+
+    <h2>SFX (<span id="scount"></span>)</h2>
+    <div class="bar">
+      <label>gain <input id="sgain" type="range" min="0" max="2" step="0.05" value="1"></label>
+      <label>rate <input id="srate" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+      <label>duration <input id="sdur" type="range" min="0" max="6" step="0.1" value="0"> <span id="sdurv">default</span></label>
+    </div>
+    <div class="grid" id="sfx"></div>
+
+    <h2>Voices</h2>
+    <div class="bar">
+      <input id="line" type="text" value="HEY! Have I got a deal for you, pal. Totally tubular.">
+    </div>
+    <div class="grid" id="voices"></div>
+  </section>
+</main>
+
+<script type="module">
+import {
+  initAudio, isAudioReady, setMuted, playSfx, playMusic, stopMusic, currentMusic, speak,
+  MUSIC_IDS, MUSIC_MOODS, SFX_IDS, VOICE_IDS,
+} from '../js/core/audio.js';
+
+const $ = (id) => document.getElementById(id);
+const musicEl = $('music');
+const sfxEl = $('sfx');
+const voicesEl = $('voices');
+$('mcount').textContent = String(MUSIC_IDS.length);
+$('scount').textContent = String(SFX_IDS.length);
+
+/** @type {Map<string, HTMLButtonElement>} */
+const musicBtns = new Map();
+
+for (const id of MUSIC_IDS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.music = id;
+  const n = document.createElement('span');
+  n.className = 'id';
+  n.textContent = id;
+  const m = document.createElement('span');
+  m.className = 'mood';
+  m.textContent = MUSIC_MOODS[id] || '';
+  b.append(n, m);
+  b.addEventListener('click', () => {
+    if (currentMusic() === id) stopMusic();
+    else playMusic(id, { gain: Number($('mgain').value) });
+    refresh();
+  });
+  musicEl.append(b);
+  musicBtns.set(id, b);
+}
+
+for (const id of SFX_IDS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.sfx = id;
+  b.textContent = id;
+  b.addEventListener('click', () => {
+    const dur = Number($('sdur').value);
+    playSfx(id, {
+      gain: Number($('sgain').value),
+      rate: Number($('srate').value),
+      duration: dur > 0 ? dur : undefined,
+    });
+  });
+  sfxEl.append(b);
+}
+
+for (const id of VOICE_IDS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.voice = id;
+  b.textContent = id;
+  b.addEventListener('click', () => { speak(id, $('line').value); });
+  voicesEl.append(b);
+}
+
+function refresh() {
+  const cur = currentMusic();
+  for (const [id, b] of musicBtns) b.classList.toggle('on', id === cur);
+  $('status').innerHTML = '';
+  const txt = document.createElement('span');
+  txt.textContent = 'audio: ';
+  const v = document.createElement('b');
+  v.textContent = isAudioReady() ? `ready · music: ${cur || '—'}` : 'not started';
+  $('status').append(txt, v);
+}
+setInterval(refresh, 400);
+
+$('start').addEventListener('click', () => {
+  initAudio();
+  document.body.classList.remove('locked');
+  $('start').textContent = 'AUDIO ON';
+  refresh();
+});
+$('stop').addEventListener('click', () => { stopMusic(); refresh(); });
+$('mute').addEventListener('change', (e) => setMuted(e.target.checked));
+$('mgain').addEventListener('input', (e) => {
+  const g = Number(e.target.value);
+  $('mgainv').textContent = g.toFixed(2);
+  const cur = currentMusic();
+  if (cur) playMusic(cur, { gain: g });
+});
+$('sdur').addEventListener('input', (e) => {
+  const d = Number(e.target.value);
+  $('sdurv').textContent = d > 0 ? `${d.toFixed(1)}s` : 'default';
+});
+</script>
+</body>
+</html>

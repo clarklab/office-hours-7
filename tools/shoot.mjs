@@ -6,7 +6,7 @@
  * pose to settle, and writes a crisp 16:9 PNG to `/assets/thumbs/epN.png`.
  *
  * ```
- * node tools/shoot.mjs             # ep1, ep2, ep3
+ * node tools/shoot.mjs             # every episode
  * node tools/shoot.mjs ep2         # just one
  * node tools/shoot.mjs brand       # /assets/og.png + /assets/logo.png
  * node tools/shoot.mjs cast        # /assets/cast/<id>.png, six real headshots
@@ -291,12 +291,13 @@ const CAST_BG = 0x0a0f18;
  * metres, and `yaw` turns the character (radians, + = their left toward us).
  *
  * ROOP's hood swallows the top of his head box, so he is framed a shade looser;
- * TUESDAY is a dog whose bounding box is mostly ear.
+ * TUESDAY is a dachshund: straight on she is all snout, so she is turned into
+ * a three-quarter view that shows the nose, the grey muzzle and the flipped ear.
  * @type {Object<string, {fill?:number, lift?:number, yaw?:number}>}
  */
 const CAST_FRAMING = {
   roop: { fill: 0.80 },
-  tuesday: { fill: 0.78, lift: 0.02 },
+  tuesday: { fill: 0.74, lift: 0.04, yaw: 0.75 },
 };
 
 /**

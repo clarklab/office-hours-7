@@ -69,7 +69,7 @@ import path from 'node:path';
 import { start, ROOT } from './serve.mjs';
 
 /** The episodes the show ships with. */
-export const EPISODE_IDS = ['ep1', 'ep2', 'ep3'];
+export const EPISODE_IDS = ['ep1', 'ep2', 'ep3', 'ep4'];
 
 /** Where screenshots go. Deliberately NOT in the repo. */
 const DEFAULT_OUT = '/tmp/oh7-check';
@@ -144,6 +144,8 @@ function readRenderer() {
  * @returns {string|null} absolute path to the binary, or null if none exists
  */
 export function findChromium() {
+  // An explicit binary wins — e.g. a Chrome for Testing build on a Mac.
+  if (process.env.OH_CHROMIUM && fs.existsSync(process.env.OH_CHROMIUM)) return process.env.OH_CHROMIUM;
   const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers'];
   /** @type {Array<{dir:string, n:number}>} */
   const found = [];

@@ -17,7 +17,7 @@ on a canvas and every voice is synthesised with WebAudio at runtime.
 | 2 | **RUNWAY** | The budget meeting, run as an escalating RPG menu. |
 | 3 | **TUESDAY** | A dog is in the office. Nobody agrees what to do. |
 
-Set at **MULCH, Inc.** — "The Everything Layer."
+Set at **MUNCH, Inc.** — "The Everything Layer."
 
 ## Running it
 

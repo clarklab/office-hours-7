@@ -8,11 +8,13 @@
  *
  * The rules this module enforces for the whole cast:
  *
- *   - hands are MITTENS, one slightly tapered box each, never fingers;
- *   - limbs are tapered boxes with a visible seam at every joint;
+ *   - hands are MITTENS — a faceted block and a thumb, never fingers;
+ *   - limbs and torsos are chamfered prisms ({@link prismBox}) with a visible
+ *     seam at every joint: still hard-edged, just no longer bricks;
  *   - hair is a handful of big faceted wedges;
- *   - faces are FLAT PAINTED TEXTURES on a tapered head box — a 2x2 frame atlas
- *     (neutral / talk / shocked / squint) swapped by moving `map.offset`;
+ *   - faces are FLAT PAINTED TEXTURES on a front-flat head prism — a 4x4 atlas
+ *     of 48px cells: four expressions (neutral / happy / shocked / squint), each
+ *     with the mouth closed, open and mid-blink, swapped by moving `map.offset`;
  *   - heads are roughly 1/5.5 of total height, torsos are slabs, shoulders are
  *     wide relative to hips;
  *   - everything is animated procedurally from sin/cos on joint rotations, with
@@ -75,31 +77,50 @@ const FADE = 0.15;
  */
 const FWD = -1;
 
-/** Frame -> `map.offset` for the 2x2 face atlas. @type {Object<string, number[]>} */
+/** The four expressions every face atlas carries, in column order. @type {string[]} */
+export const FACE_EXPRESSIONS = ['neutral', 'happy', 'shocked', 'squint'];
+
+/** Pixels per face cell: the old 32px face, times 1.5. @type {number} */
+export const FACE_CELL = 48;
+
+/** Cells per side of the atlas (4x4: rows are closed / open / blink / spare). */
+const FACE_GRID = 4;
+
+/**
+ * The old frame vocabulary, still accepted by `setFace`: each name is an
+ * expression plus a mouth state. @type {Object<string, [string, boolean|null]>}
+ */
 export const FACE_FRAMES = {
-  neutral: [0, 0.5],
-  talk: [0.5, 0.5],
-  shocked: [0, 0],
-  squint: [0.5, 0],
+  neutral: ['neutral', null],
+  talk: [null, true],
+  shocked: ['shocked', null],
+  squint: ['squint', null],
+  happy: ['happy', null],
 };
 
-/** Default face frame per animation. @type {Object<string, string>} */
+/**
+ * Default face per animation: an expression, optionally `+talk` (the mouth
+ * flaps like speech) or `+open` (held open — a scream, a cheer).
+ * @type {Object<string, string>}
+ */
 const ANIM_FACE = {
   idle: 'neutral',
   walk: 'neutral',
-  talk: 'talk',
-  panic: 'shocked',
+  talk: 'neutral+talk',
+  panic: 'shocked+open',
   point: 'neutral',
   type: 'squint',
   shrug: 'neutral',
-  cheer: 'talk',
+  cheer: 'happy+open',
   slump: 'squint',
   sit: 'neutral',
   run: 'shocked',
-  bark: 'talk',
+  bark: 'happy+talk',
   shake: 'squint',
   sniff: 'squint',
-  zoomies: 'talk',
+  zoomies: 'happy+open',
+  hop: 'shocked+open',
+  bite: 'squint',
 };
 
 /** Emote aliases so `'?'` and `'!'` and `'$'` work too. @type {Object<string,string>} */
@@ -182,6 +203,150 @@ export function taperedBox(w, h, d, o = {}, matOpts = {}) {
 }
 
 /**
+ * A faceted prism — the upgraded unit of the cast. It is a tapered box whose
+ * vertical edges are chamfered (8 sides), or a hexagon pointed at the sides
+ * (6), or a plain box (4), optionally stacked from several rings so a head
+ * can narrow to a jaw and a crown, or a chest can swell and slope into the
+ * shoulders. Still hard-edged, still cheap: `4n - 4` triangles per segment
+ * pair, so an octagon is 28 and a two-segment octagon 44.
+ *
+ * @param {number} w width (x) at scale 1
+ * @param {number} h height (y)
+ * @param {number} d depth (z) at scale 1
+ * @param {Object} [o]
+ * @param {4|6|8} [o.sides=8]
+ * @param {number} [o.bevel=0.22] chamfer on every vertical edge, as a fraction of min(w, d) (8 sides only)
+ * @param {number} [o.bevelF] front (+Z) edges, overrides `bevel`
+ * @param {number} [o.bevelB] back (-Z) edges, overrides `bevel`
+ * @param {Array<number[]>} [o.rings] `[u, sx, sz]` bottom (u=0) to top (u=1); default from top/bottom
+ * @param {number} [o.top=0.8] @param {number} [o.topZ] @param {number} [o.bottom=1] @param {number} [o.bottomZ]
+ * @param {number} [o.shearZ=0] @param {number} [o.shearX=0]
+ * @param {boolean} [o.anchorFront=false] scale z toward the front plane, so it stays flat for a painted face
+ * @param {boolean} [o.smooth=false] rounded side normals instead of flat facets
+ * @param {Object} [matOpts] forwarded to {@link ps1Material}
+ * @returns {THREE.Mesh}
+ */
+export function prismBox(w, h, d, o = {}, matOpts = {}) {
+  const sides = o.sides || 8;
+  const hw = w / 2;
+  const hd = d / 2;
+  const m = Math.min(w, d);
+  const bev = o.bevel === undefined ? 0.22 : o.bevel;
+  const cF = Math.min(m * (o.bevelF === undefined ? bev : o.bevelF), m * 0.49);
+  const cB = Math.min(m * (o.bevelB === undefined ? bev : o.bevelB), m * 0.49);
+
+  // Footprint, wound so every side quad faces outward (see the cross product
+  // in the side loop: edge x up must point away from the centre).
+  /** @type {number[][]} */
+  let pts;
+  if (sides === 4) {
+    pts = [[hw, -hd], [-hw, -hd], [-hw, hd], [hw, hd]];
+  } else if (sides === 6) {
+    pts = [[hw * 0.5, -hd], [-hw * 0.5, -hd], [-hw, 0], [-hw * 0.5, hd], [hw * 0.5, hd], [hw, 0]];
+  } else {
+    pts = [
+      [hw - cB, -hd], [-hw + cB, -hd],
+      [-hw, -hd + cB], [-hw, hd - cF],
+      [-hw + cF, hd], [hw - cF, hd],
+      [hw, hd - cF], [hw, -hd + cB],
+    ];
+    pts = pts.filter((p, i) => {
+      const q = pts[(i + 1) % pts.length];
+      return Math.abs(p[0] - q[0]) > 1e-6 || Math.abs(p[1] - q[1]) > 1e-6;
+    });
+  }
+  const n = pts.length;
+
+  const top = o.top === undefined ? 0.8 : o.top;
+  const topZ = o.topZ === undefined ? top : o.topZ;
+  const bottom = o.bottom === undefined ? 1 : o.bottom;
+  const bottomZ = o.bottomZ === undefined ? bottom : o.bottomZ;
+  const rings = o.rings || [[0, bottom, bottomZ], [1, top, topZ]];
+  const shearZ = o.shearZ || 0;
+  const shearX = o.shearX || 0;
+
+  /** ring r, point i -> [x, y, z] */
+  const at = (r, i) => {
+    const [u, sx, sz] = rings[r];
+    const [px, pz] = pts[i];
+    const z = o.anchorFront ? hd - (hd - pz) * sz : pz * sz;
+    return [px * sx + shearX * u, -h / 2 + u * h, z + shearZ * u];
+  };
+
+  // perimeter, for side UVs
+  const edge = [];
+  let per = 0;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    edge.push(per);
+    per += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
+  edge.push(per);
+
+  const P = [];
+  const N = [];
+  const U = [];
+  const smoothN = (i) => {
+    const [px, pz] = pts[i];
+    const l = Math.hypot(px / hw, pz / hd) || 1;
+    return [px / hw / l, 0, pz / hd / l];
+  };
+  const tri = (a, b, c, ua, ub, uc, na, nb, nc) => {
+    P.push(...a, ...b, ...c);
+    U.push(...ua, ...ub, ...uc);
+    N.push(...(na || [0, 0, 0]), ...(nb || [0, 0, 0]), ...(nc || [0, 0, 0]));
+  };
+
+  for (let r = 0; r + 1 < rings.length; r++) {
+    const v0 = rings[r][0];
+    const v1 = rings[r + 1][0];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const a0 = at(r, i); const b0 = at(r, j); const a1 = at(r + 1, i); const b1 = at(r + 1, j);
+      const ua = edge[i] / per; const ub = edge[i + 1] / per;
+      const ns = o.smooth ? [smoothN(i), smoothN(j)] : null;
+      tri(a0, b0, b1, [ua, v0], [ub, v0], [ub, v1], ns && ns[0], ns && ns[1], ns && ns[1]);
+      tri(a0, b1, a1, [ua, v0], [ub, v1], [ua, v1], ns && ns[0], ns && ns[1], ns && ns[0]);
+    }
+  }
+  const last = rings.length - 1;
+  const capUV = (p) => [p[0] / w + 0.5, p[2] / d + 0.5];
+  for (let i = 1; i + 1 < n; i++) {
+    const t0 = at(last, 0); const t1 = at(last, i); const t2 = at(last, i + 1);
+    tri(t0, t1, t2, capUV(t0), capUV(t1), capUV(t2), [0, 1, 0], [0, 1, 0], [0, 1, 0]);
+    const b0 = at(0, 0); const b1 = at(0, i + 1); const b2 = at(0, i);
+    tri(b0, b1, b2, capUV(b0), capUV(b1), capUV(b2), [0, -1, 0], [0, -1, 0], [0, -1, 0]);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  if (!o.smooth) {
+    geo.computeVertexNormals();
+  } else {
+    // smooth sides already carry radial normals; tilt them by the taper so a
+    // narrowing limb still catches the key light on its upper face
+    const tmp = geo.clone();
+    tmp.computeVertexNormals();
+    const fn = tmp.attributes.normal;
+    const nn = geo.attributes.normal;
+    for (let i = 0; i < nn.count; i++) {
+      if (Math.abs(nn.getY(i)) > 0.99) continue;
+      const x = nn.getX(i); const z = nn.getZ(i);
+      const y = fn.getY(i);
+      const l = Math.hypot(x, y, z) || 1;
+      nn.setXYZ(i, x / l, y / l, z / l);
+    }
+    tmp.dispose();
+  }
+  const mesh = new THREE.Mesh(geo, ps1Material(matOpts));
+  mesh.userData.prism = { w, h, d, rings, cF, anchorFront: !!o.anchorFront };
+  return mesh;
+}
+
+/**
  * A low-segment cylinder. Keep `seg` at 5-8: this is a PlayStation.
  * @param {number} rt top radius
  * @param {number} rb bottom radius
@@ -205,9 +370,24 @@ export function cylMesh(rt, rb, h, seg = 6, matOpts = {}) {
  * @returns {THREE.Mesh}
  */
 export function wedgeMesh(w, h, d, matOpts = {}) {
-  const geo = new THREE.ConeGeometry(0.5, h, 4, 1, false);
-  geo.rotateY(Math.PI / 4);
-  geo.scale(w / 0.7071, 1, d / 0.7071);
+  // A true pyramid: 4 faces and a 2-triangle base. (A 4-segment cone is the
+  // same shape but spends half its triangles on degenerate slivers at the tip.)
+  const x = w / 2; const z = d / 2; const y0 = -h / 2; const y1 = h / 2;
+  const A = [0, y1, 0];
+  const b = [[-x, y0, -z], [x, y0, -z], [x, y0, z], [-x, y0, z]];
+  const P = [];
+  const U = [];
+  for (let i = 0; i < 4; i++) {
+    const p = b[i]; const q = b[(i + 1) % 4];
+    P.push(...q, ...p, ...A);
+    U.push(1, 0, 0, 0, 0.5, 1);
+  }
+  P.push(...b[0], ...b[1], ...b[2], ...b[0], ...b[2], ...b[3]);
+  U.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  geo.computeVertexNormals();
   return new THREE.Mesh(geo, ps1Material(matOpts));
 }
 
@@ -242,158 +422,420 @@ function blob(ctx, x, y, w, h) {
 }
 
 /**
- * Paints one 32x32 face frame at `ox, oy` of the atlas.
+ * A pixel-stepped stroke from `x0` to `x1`, one column at a time, whose top
+ * edge follows `yAt(t)` for t in 0..1. Brows, lids and smiles are all this.
  * @param {CanvasRenderingContext2D} ctx
- * @param {number} ox @param {number} oy
- * @param {string} frame 'neutral'|'talk'|'shocked'|'squint'
- * @param {Object} o see {@link faceTexture}
+ * @param {number} x0 @param {number} x1 @param {(t:number)=>number} yAt @param {number} th
  */
-function drawFaceFrame(ctx, ox, oy, frame, o) {
-  const S = 32;
-  const skin = o.skin;
-  const shade = o.shade;
-  const dark = o.line;
-
-  ctx.save();
-  ctx.translate(ox, oy);
-
-  // base + one shaded plane down the left cheek, the only "form" a PS1 face got
-  ctx.fillStyle = skin;
-  ctx.fillRect(0, 0, S, S);
-  ctx.fillStyle = shade;
-  ctx.fillRect(0, 0, 4, S);
-  ctx.fillRect(S - 3, 0, 3, S);
-
-  // the nose is at most one shaded polygon
-  ctx.fillStyle = o.nose;
-  ctx.beginPath();
-  ctx.moveTo(15, 17);
-  ctx.lineTo(18, 22);
-  ctx.lineTo(14, 22);
-  ctx.closePath();
-  ctx.fill();
-
-  const shocked = frame === 'shocked';
-  const squint = frame === 'squint';
-
-  // brow line
-  ctx.fillStyle = o.brow;
-  const browY = shocked ? 7 : 9;
-  const browTilt = o.browTilt || 0;
-  ctx.fillRect(5, browY + browTilt, 9, 2);
-  ctx.fillRect(18, browY - browTilt, 9, 2);
-
-  // BIG simple eyes — this is what reads at 384x216
-  const eyeY = 13;
-  if (squint) {
-    ctx.fillStyle = dark;
-    ctx.fillRect(5, eyeY + 2, 9, 2);
-    ctx.fillRect(18, eyeY + 2, 9, 2);
-  } else {
-    const ew = shocked ? 9 : 8;
-    const eh = shocked ? 8 : 6;
-    ctx.fillStyle = o.sclera;
-    blob(ctx, 5, eyeY, ew, eh);
-    blob(ctx, 32 - 5 - ew, eyeY, ew, eh);
-    ctx.fillStyle = dark;
-    const iw = shocked ? 3 : 4;
-    const ih = shocked ? 4 : 5;
-    ctx.fillRect(5 + (o.gaze || 1), eyeY + 1, iw, ih);
-    ctx.fillRect(32 - 5 - ew + (o.gaze || 1) + 1, eyeY + 1, iw, ih);
-  }
-
-  // mouth
-  ctx.fillStyle = o.mouth;
-  if (frame === 'talk') {
-    blob(ctx, 13, 23, 7, 6);
-  } else if (shocked) {
-    blob(ctx, 14, 24, 5, 5);
-  } else if (squint) {
-    ctx.fillRect(13, 26, 6, 1);
-  } else {
-    ctx.fillRect(13, 25, 6, 2);
-    if (o.smirk) ctx.fillRect(19, 24, 2, 2);
-  }
-
-  if (typeof o.extra === 'function') o.extra(ctx, frame, S);
-  ctx.restore();
+function stroke(ctx, x0, x1, yAt, th) {
+  const n = Math.max(1, x1 - x0);
+  for (let x = x0; x < x1; x++) ctx.fillRect(x, Math.round(yAt((x - x0) / (n - 1 || 1))), 1, th);
 }
 
 /**
- * Builds a 64x64 face texture: a 2x2 atlas of 32x32 frames laid out
- * neutral / talk on the top row and shocked / squint on the bottom. Swap frames
- * by writing `tex.offset` from {@link FACE_FRAMES} — the rig does this for you.
+ * Brow shape per expression: `[base, inner, outer, arch]` in pixels, +y down.
+ * @type {Object<string, number[]>}
+ */
+const BROWS = {
+  neutral: [0, 0, 0, 1],
+  happy: [-1, -1, 0, 2],
+  shocked: [-4, -1, 0, 2],
+  squint: [1, 3, -1, 0],
+};
+
+/**
+ * Paints one 48x48 face cell in cell-local pixels. The layout is the old 32px
+ * face scaled by 1.5, with the extra pixels spent on form: a two-step side
+ * shade, a lit nose ridge, irises with pupils and a catch-light, lids, lips and
+ * teeth. Four expressions, each with the mouth shut, open and mid-blink.
  *
- * @param {Object} [o]
- * @param {string} [o.skin='#c9a689'] base fill
- * @param {string} [o.shade] side-plane shade (defaults to a darker skin)
- * @param {string} [o.line='#241a18'] iris / eyeline colour
- * @param {string} [o.brow] brow bar colour
- * @param {string} [o.mouth] mouth colour
- * @param {string} [o.sclera='#e6e2dc'] eye white
- * @param {string} [o.nose] nose polygon colour
- * @param {number} [o.browTilt=0] +1 angry, -1 worried
- * @param {number} [o.gaze=1] iris offset in px
- * @param {boolean} [o.smirk=false]
- * @param {(ctx:CanvasRenderingContext2D, frame:string, size:number)=>void} [o.extra]
- *   painted last, in frame-local pixels — shades, glasses, freckles, muzzles
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{expr:string, open:boolean, blink:boolean}} st
+ * @param {Object} o resolved options from {@link faceTexture}
+ */
+function drawFaceCell(ctx, st, o) {
+  const S = FACE_CELL;
+  const { expr, open, blink } = st;
+  const eyeY = 20 + o.eyeY;
+  const my = 38 + o.mouthY;
+
+  // skin, a two-step shade down each side, a jaw shadow
+  ctx.fillStyle = o.skin;
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = o.shade;
+  ctx.fillRect(0, 0, 5, S);
+  ctx.fillRect(S - 5, 0, 5, S);
+  ctx.fillStyle = o.shadeMid;
+  ctx.fillRect(5, 0, 2, S);
+  ctx.fillRect(S - 7, 0, 2, S);
+  ctx.fillRect(9, S - 3, S - 18, 3);
+  ctx.fillStyle = o.lit;
+  ctx.fillRect(12, 2, S - 24, 5);
+
+  if (expr === 'happy' || o.blush) {
+    ctx.fillStyle = o.blushColor;
+    ctx.fillRect(7, 31, 8, 4);
+    ctx.fillRect(S - 15, 31, 8, 4);
+  }
+
+  // nose: a shaded plane, a lit ridge, a nostril line
+  ctx.fillStyle = o.nose;
+  ctx.beginPath();
+  ctx.moveTo(24, 24);
+  ctx.lineTo(28 + o.noseW, 33);
+  ctx.lineTo(20 - o.noseW, 33);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = o.lit;
+  ctx.fillRect(22, 26, 1, 5);
+  ctx.fillStyle = o.nostril;
+  ctx.fillRect(21 - o.noseW, 33, 6 + o.noseW * 2, 1);
+
+  // brows
+  const [base, inner, outer, arch] = BROWS[expr] || BROWS.neutral;
+  const by = eyeY - 7 + base;
+  ctx.fillStyle = o.brow;
+  for (const side of [-1, 1]) {
+    const raise = side * o.browTilt * 1.5;
+    const x0 = side < 0 ? 7 : 29;
+    // t runs outer -> inner on the left, inner -> outer on the right
+    stroke(ctx, x0, x0 + 12, (t) => {
+      const u = side < 0 ? t : 1 - t; // 0 at the outer end, 1 at the inner end
+      return by + raise + outer * (1 - u) + inner * u - arch * Math.sin(Math.PI * u * 0.9 + 0.1);
+    }, o.browW);
+  }
+
+  // eyes
+  const ew = Math.round(12 * o.eyeScale);
+  const eh = Math.round(9 * o.eyeScale);
+  for (const side of [-1, 1]) {
+    const ecx = side < 0 ? 13 : 35;
+    const ex = Math.round(ecx - ew / 2);
+    const outerX = side < 0 ? ex - 2 : ex + ew + 1;
+    if (blink) {
+      ctx.fillStyle = o.line;
+      const up = expr === 'happy';
+      stroke(ctx, ex, ex + ew, (t) => eyeY + 5 + (up ? -1 : 1) * Math.round(Math.sin(Math.PI * t) * 1.6), 2);
+      ctx.fillRect(outerX, eyeY + 5, 1, 1);
+      continue;
+    }
+    if (expr === 'squint') {
+      ctx.fillStyle = o.line;
+      ctx.fillRect(ex - 1, eyeY + 3, ew + 2, 2);
+      ctx.fillStyle = o.sclera;
+      ctx.fillRect(ex + 1, eyeY + 5, ew - 2, 2);
+      ctx.fillStyle = o.iris;
+      ctx.fillRect(ecx - 2 + o.gaze, eyeY + 5, 4, 2);
+      ctx.fillStyle = o.shadeMid;
+      ctx.fillRect(ex, eyeY + 7, ew, 1);
+      continue;
+    }
+    const big = expr === 'shocked';
+    const w = big ? ew + 2 : ew;
+    const h = big ? eh + 3 : eh;
+    const x = big ? ex - 1 : ex;
+    const y = big ? eyeY - 2 : eyeY;
+    ctx.fillStyle = o.sclera;
+    blob(ctx, x, y, w, h);
+    const iw = big ? 4 : Math.round(w * 0.5);
+    const ih = big ? 5 : h - 1;
+    const ix = Math.round(ecx - iw / 2) + o.gaze;
+    const iy = big ? y + Math.round((h - ih) / 2) : y + 1;
+    ctx.fillStyle = o.iris;
+    ctx.fillRect(ix, iy, iw, ih);
+    ctx.fillStyle = o.pupil;
+    ctx.fillRect(ix + Math.round(iw / 2) - 1, iy + Math.round(ih / 2) - 1, 2, big ? 2 : 3);
+    ctx.fillStyle = o.glint;
+    ctx.fillRect(ix + 1, iy + 1, big ? 1 : 2, big ? 1 : 2);
+    // lids: the upper one is the line that makes it an eye at 384x216
+    ctx.fillStyle = o.line;
+    ctx.fillRect(x - 1, y - 1, w + 2, big ? 1 : 2);
+    ctx.fillRect(outerX + (big ? side : 0), y, 1, o.lashes ? 2 : 1);
+    if (o.lashes) ctx.fillRect(outerX + side, y - 1, 1, 1);
+    if (expr === 'happy') {
+      // cheeks push the lower lid up into an arc
+      ctx.fillStyle = o.skin;
+      ctx.fillRect(x, y + h - 3, w, 3);
+      ctx.fillRect(x + 2, y + h - 4, w - 4, 1);
+      ctx.fillStyle = o.shadeMid;
+      ctx.fillRect(x + 1, y + h - 3, 2, 1);
+      ctx.fillRect(x + w - 3, y + h - 3, 2, 1);
+      ctx.fillRect(x + 3, y + h - 4, w - 6, 1);
+    } else {
+      ctx.fillStyle = o.shadeMid;
+      ctx.fillRect(x + 1, y + h, w - 2, 1);
+    }
+  }
+
+  // mouth
+  const cx = 24 + o.mouthX;
+  if (!open) {
+    if (expr === 'happy') {
+      ctx.fillStyle = o.mouth;
+      ctx.fillRect(cx - 4, my + 1, 8, 2);
+      ctx.fillRect(cx - 7, my - 1, 2, 2);
+      ctx.fillRect(cx - 5, my, 2, 2);
+      ctx.fillRect(cx + 3, my, 2, 2);
+      ctx.fillRect(cx + 5, my - 1, 2, 2);
+      ctx.fillStyle = o.lip;
+      ctx.fillRect(cx - 3, my + 3, 6, 1);
+    } else if (expr === 'shocked') {
+      ctx.fillStyle = o.mouth;
+      blob(ctx, cx - 3, my - 1, 6, 5);
+      ctx.fillStyle = o.lip;
+      ctx.fillRect(cx - 2, my + 4, 4, 1);
+    } else {
+      ctx.fillStyle = o.mouth;
+      ctx.fillRect(cx - 5, my, 10, 2);
+      if (expr === 'squint') ctx.fillRect(cx - 7, my + 1, 2, 2);
+      else if (o.smirk) ctx.fillRect(cx + 5, my - 1, 2, 2);
+      ctx.fillStyle = o.lip;
+      ctx.fillRect(cx - 4, my + 2, 8, 1);
+    }
+  } else if (expr === 'happy') {
+    ctx.fillStyle = o.mouth;
+    ctx.fillRect(cx - 8, my - 2, 16, 3);
+    ctx.fillRect(cx - 7, my + 1, 14, 2);
+    ctx.fillRect(cx - 5, my + 3, 10, 2);
+    ctx.fillRect(cx - 3, my + 5, 6, 1);
+    ctx.fillStyle = o.teeth;
+    ctx.fillRect(cx - 7, my - 2, 14, 2);
+    ctx.fillStyle = o.tongue;
+    ctx.fillRect(cx - 4, my + 3, 8, 2);
+  } else if (expr === 'shocked') {
+    ctx.fillStyle = o.mouth;
+    blob(ctx, cx - 5, my - 4, 10, 11);
+    ctx.fillStyle = o.teeth;
+    ctx.fillRect(cx - 3, my - 4, 6, 1);
+    ctx.fillStyle = o.tongue;
+    blob(ctx, cx - 3, my + 3, 6, 3);
+  } else if (expr === 'squint') {
+    ctx.fillStyle = o.mouth;
+    blob(ctx, cx - 8, my - 2, 16, 6);
+    ctx.fillStyle = o.teeth;
+    ctx.fillRect(cx - 7, my - 1, 14, 4);
+    ctx.fillStyle = o.mouth;
+    ctx.fillRect(cx - 7, my + 1, 14, 1);
+    for (let x = cx - 5; x < cx + 7; x += 3) ctx.fillRect(x, my - 1, 1, 4);
+  } else {
+    ctx.fillStyle = o.mouth;
+    blob(ctx, cx - 6, my - 2, 12, 7);
+    ctx.fillStyle = o.teeth;
+    ctx.fillRect(cx - 4, my - 2, 8, 2);
+    ctx.fillStyle = o.tongue;
+    ctx.fillRect(cx - 3, my + 3, 6, 2);
+    ctx.fillStyle = o.lip;
+    ctx.fillRect(cx - 4, my + 5, 8, 1);
+  }
+
+  if (typeof o.extra === 'function') o.extra(ctx, st, S);
+}
+
+/**
+ * Builds a face atlas: one 48px cell per expression (columns) per mouth state
+ * (rows: closed, open, blink). `draw` paints a cell in cell-local pixels and is
+ * handed `{expr, open, blink}`. Tuesday draws her own; humans use
+ * {@link faceTexture}.
+ *
+ * @param {(ctx:CanvasRenderingContext2D, st:{expr:string, open:boolean, blink:boolean}, size:number)=>void} draw
+ * @param {string[]} [exprs=FACE_EXPRESSIONS] up to four
  * @returns {THREE.Texture}
  */
-export function faceTexture(o = {}) {
-  const skin = o.skin || '#c9a689';
-  const cfg = {
-    skin,
-    shade: o.shade || shadeOf(skin, 0.82),
-    line: o.line || '#241a18',
-    brow: o.brow || o.line || '#241a18',
-    mouth: o.mouth || '#5c3a33',
-    sclera: o.sclera || '#e6e2dc',
-    nose: o.nose || shadeOf(skin, 0.86),
-    browTilt: o.browTilt || 0,
-    gaze: o.gaze === undefined ? 1 : o.gaze,
-    smirk: !!o.smirk,
-    extra: o.extra,
-  };
-  const tex = makeTexture(64, 64, (ctx) => {
-    drawFaceFrame(ctx, 0, 0, 'neutral', cfg);
-    drawFaceFrame(ctx, 32, 0, 'talk', cfg);
-    drawFaceFrame(ctx, 0, 32, 'shocked', cfg);
-    drawFaceFrame(ctx, 32, 32, 'squint', cfg);
+export function faceAtlas(draw, exprs = FACE_EXPRESSIONS) {
+  const S = FACE_CELL;
+  const list = exprs.slice(0, FACE_GRID);
+  const tex = makeTexture(S * FACE_GRID, S * FACE_GRID, (ctx) => {
+    list.forEach((expr, col) => {
+      for (const [row, st] of [[0, { open: false, blink: false }], [1, { open: true, blink: false }],
+        [2, { open: false, blink: true }]]) {
+        ctx.save();
+        ctx.translate(col * S, row * S);
+        ctx.beginPath();
+        ctx.rect(0, 0, S, S);
+        ctx.clip();
+        draw(ctx, { expr, ...st }, S);
+        ctx.restore();
+      }
+    });
   });
-  tex.repeat.set(0.5, 0.5);
-  tex.offset.set(FACE_FRAMES.neutral[0], FACE_FRAMES.neutral[1]);
+  tex.repeat.set(1 / FACE_GRID, 1 / FACE_GRID);
   tex.wrapS = THREE.ClampToEdgeWrapping;
   tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.userData.faceExprs = list;
+  setFaceCell(tex, list[0], 0);
   return tex;
 }
 
 /**
- * Multiplies a `#rrggbb` string toward black.
+ * Points a face atlas at one cell.
+ * @param {THREE.Texture} tex
+ * @param {string} expr
+ * @param {number} row 0 closed, 1 open, 2 blink
+ */
+export function setFaceCell(tex, expr, row) {
+  const list = tex.userData.faceExprs || FACE_EXPRESSIONS;
+  const col = Math.max(0, list.indexOf(expr));
+  tex.offset.set(col / FACE_GRID, 1 - (row + 1) / FACE_GRID);
+}
+
+/**
+ * Builds a human face atlas (see {@link faceAtlas}) from a handful of knobs.
+ *
+ * @param {Object} [o]
+ * @param {string} [o.skin='#c9a689'] base fill
+ * @param {string} [o.shade] side-plane shade (defaults to a darker skin)
+ * @param {string} [o.line='#241a18'] lids / lash line
+ * @param {string} [o.iris] iris colour (defaults to a warm dark brown)
+ * @param {string} [o.brow] brow colour
+ * @param {number} [o.browW=2] brow thickness in px
+ * @param {string} [o.mouth] mouth interior / closed line
+ * @param {string} [o.lip] lip tone under the mouth
+ * @param {string} [o.sclera='#e6e2dc'] eye white
+ * @param {string} [o.nose] nose plane colour
+ * @param {number} [o.noseW=0] extra nose width in px
+ * @param {number} [o.browTilt=0] +1 raises the right brow, -1 the left (the skeptic / the charmer)
+ * @param {number} [o.gaze=1] iris offset in px
+ * @param {number} [o.eyeScale=1] @param {number} [o.eyeY=0] @param {number} [o.mouthY=0] @param {number} [o.mouthX=0]
+ * @param {boolean} [o.smirk=false] @param {boolean} [o.lashes=false] @param {boolean} [o.blush=false]
+ * @param {(ctx:CanvasRenderingContext2D, st:{expr:string, open:boolean, blink:boolean}, size:number)=>void} [o.extra]
+ *   painted last, in cell-local pixels — shades, stubble, freckles, hood shadow
+ * @returns {THREE.Texture}
+ */
+export function faceTexture(o = {}) {
+  const skin = o.skin || '#c9a689';
+  const line = o.line || '#241a18';
+  const cfg = {
+    skin,
+    shade: o.shade || shadeOf(skin, 0.80),
+    shadeMid: shadeOf(o.shade || shadeOf(skin, 0.80), 1.10),
+    lit: shadeOf(skin, 1.07),
+    line,
+    iris: o.iris || '#3a2519',
+    pupil: o.pupil || '#120c0c',
+    glint: o.glint || '#f4f0ea',
+    brow: o.brow || line,
+    browW: o.browW || 2,
+    mouth: o.mouth || '#5c3a33',
+    lip: o.lip || mix(skin, '#a0504a', 0.35),
+    teeth: o.teeth || '#e8e2d6',
+    tongue: o.tongue || '#b0606a',
+    sclera: o.sclera || '#e6e2dc',
+    nose: o.nose || shadeOf(skin, 0.86),
+    nostril: shadeOf(skin, 0.70),
+    noseW: o.noseW || 0,
+    blushColor: o.blushColor || 'rgba(196,84,84,0.22)',
+    browTilt: o.browTilt || 0,
+    gaze: o.gaze === undefined ? 1 : o.gaze,
+    eyeScale: o.eyeScale || 1,
+    eyeY: o.eyeY || 0,
+    mouthY: o.mouthY || 0,
+    mouthX: o.mouthX || 0,
+    smirk: !!o.smirk,
+    lashes: !!o.lashes,
+    blush: !!o.blush,
+    extra: o.extra,
+  };
+  return faceAtlas((ctx, st) => drawFaceCell(ctx, st, cfg));
+}
+
+/**
+ * Multiplies a `#rrggbb` string toward black (k < 1) or white-ish (k > 1).
  * @param {string} hex @param {number} k
  * @returns {string}
  */
 function shadeOf(hex, k) {
   const c = new THREE.Color(hex);
   c.multiplyScalar(k);
+  c.r = Math.min(1, c.r); c.g = Math.min(1, c.g); c.b = Math.min(1, c.b);
   return `#${c.getHexString()}`;
+}
+
+/**
+ * @param {string} a @param {string} b @param {number} t
+ * @returns {string}
+ */
+function mix(a, b, t) {
+  return `#${new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString()}`;
+}
+
+/**
+ * Where a human face goes on a head of height `H`: a square quad 0.84H on a
+ * side, centred at 0.52H — eyes land at about half height, the mouth at a
+ * quarter, and the top of the forehead tucks under the hairline.
+ * @param {number} H head height
+ * @param {number} [k=1] scale, for a bigger or smaller face
+ * @param {number} [dy=0] nudge up/down in metres
+ * @returns {{w:number, h:number, y:number}}
+ */
+export function faceBox(H, k = 1, dy = 0) {
+  return { w: H * 0.84 * k, h: H * 0.84 * k, y: H * 0.52 + dy };
+}
+
+/**
+ * The z of a head's front plane (where the face sits) for a {@link buildHuman}
+ * head of depth `headD`. Hair that crosses the face must stay in front of this
+ * with a vertical front (`anchorFront`), or it will slice through the face.
+ * @param {number} headD
+ * @returns {number}
+ */
+export function headFront(headD) {
+  return headD / 2 + 0.003;
 }
 
 /**
  * Hangs the painted face on the front of a head joint. Affine warping is on
  * (the ps1 default), which is what makes it swim as the head turns.
+ *
+ * If the head was built by {@link buildHuman} (a front-anchored
+ * {@link prismBox}), the quad is cut into two rows and each row is pinched to
+ * the head's width at that height, so the face follows the jaw instead of
+ * hanging off it like a plate.
+ *
  * @param {THREE.Object3D} head the head joint
  * @param {THREE.Texture} tex from {@link faceTexture}
  * @param {Object} o
  * @param {number} o.w quad width
  * @param {number} o.h quad height
  * @param {number} o.y local y of the quad centre
- * @param {number} o.z local z of the quad plane
+ * @param {number} [o.z] local z of the quad plane (defaults to just proud of the head front)
  * @returns {THREE.Mesh}
  */
 export function addFace(head, tex, o) {
-  const geo = new THREE.PlaneGeometry(o.w, o.h, 1, 1);
+  const geo = new THREE.PlaneGeometry(o.w, o.h, 1, 2);
+  let z = o.z;
+  const shell = head.children.find((c) => c.userData && c.userData.prism && c.userData.prism.anchorFront);
+  if (shell) {
+    const p = shell.userData.prism;
+    const y0 = shell.position.y - p.h / 2;
+    const ringAt = (u) => {
+      const r = p.rings;
+      for (let i = 0; i + 1 < r.length; i++) {
+        if (u <= r[i + 1][0] || i + 2 === r.length) {
+          const k = Math.min(1, Math.max(0, (u - r[i][0]) / ((r[i + 1][0] - r[i][0]) || 1)));
+          return r[i][1] + (r[i + 1][1] - r[i][1]) * k;
+        }
+      }
+      return 1;
+    };
+    // Pinch each row to the head's width there, and CROP the texture to match
+    // rather than squashing it: the features keep their size and only the
+    // painted side-shading falls off the edge.
+    const pos = geo.attributes.position;
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const y = o.y + pos.getY(i);
+      const u = Math.min(1, Math.max(0, (y - y0) / p.h));
+      const half = (p.w / 2 - p.cF) * ringAt(u) - 0.003;
+      const k = Math.min(1, half / (o.w / 2));
+      pos.setX(i, pos.getX(i) * k);
+      uv.setX(i, 0.5 + (uv.getX(i) - 0.5) * k);
+    }
+    pos.needsUpdate = true;
+    uv.needsUpdate = true;
+    if (z === undefined) z = shell.position.z + p.d / 2 + 0.003;
+  }
   const mesh = new THREE.Mesh(geo, ps1Material({ map: tex, color: 0xffffff, affine: true }));
-  mesh.position.set(0, o.y, o.z);
+  mesh.position.set(0, o.y, z === undefined ? 0.13 : z);
   mesh.name = 'face';
   head.add(mesh);
   return mesh;
@@ -790,6 +1232,25 @@ export const HUMAN_POSES = {
   sit(P, t, c) {
     HUMAN_POSES.idle(P, t, c);
   },
+
+  /** Just been bitten: hopping on one foot, clutching the other ankle, one arm flailing. */
+  hop(P, t) {
+    const h = Math.abs(Math.sin(t * 7.5));
+    P.r('thighL', FWD * 0.95, 0, 0.05);
+    P.r('shinL', 1.55, 0, 0);
+    P.r('footL', 0.3, 0, 0);
+    P.r('thighR', FWD * 0.05, 0, -0.03);
+    P.r('shinR', 0.14 * (1 - h), 0, 0);
+    P.r('footR', -0.07 * (1 - h), 0, 0);
+    P.r('spine', 0.26, 0, 0.07 * Math.sin(t * 7.5));
+    P.r('chest', 0.12, 0, 0);
+    P.r('head', -0.12, 0.15 * Math.sin(t * 3.7), 0.05 * Math.sin(t * 7.5));
+    P.r('armL', FWD * 0.85, 0, 0.12);
+    P.r('foreL', FWD * 0.95, 0, 0);
+    P.r('armR', FWD * 0.2, 0, 1.25 + 0.25 * Math.sin(t * 15));
+    P.r('foreR', FWD * 0.45, 0, 0.2 * Math.sin(t * 15));
+    P.p('hips', 0, h * 0.07, 0);
+  },
 };
 
 /**
@@ -843,7 +1304,11 @@ export const HUMAN_SIT_JOINTS = ['hips', 'thighL', 'thighR', 'shinL', 'shinR', '
  * @property {(name:string)=>Promise<void>} emote
  * @property {(v:boolean)=>void} setSitting
  * @property {THREE.Object3D|null} prop signature hand prop
- * @property {(frame:string|null)=>void} setFace additive: force a face frame
+ * @property {(frame:string|null)=>void} setFace additive: force a face frame (legacy names: neutral/talk/shocked/squint/happy)
+ * @property {(expr:string|null)=>void} setExpression additive: hold 'neutral'|'happy'|'shocked'|'squint'; null returns to the animation's own
+ * @property {(open:boolean|null)=>void} setMouth additive: hold the mouth open/closed; null returns to automatic (flaps while talking)
+ * @property {()=>string[]} expressions additive: the expressions this face atlas carries
+ * @property {()=>{expr:string, open:boolean, blink:boolean}} faceState additive: what the face is showing right now
  * @property {()=>string[]} anims additive: the animation vocabulary
  * @property {()=>number} triangles additive: poly count, for budget checks
  * @property {()=>void} dispose additive
@@ -857,8 +1322,9 @@ export const HUMAN_SIT_JOINTS = ['hips', 'thighL', 'thighR', 'shinL', 'shinR', '
  * @property {string[]} [sitJoints] joints the seated layer owns
  * @property {THREE.Object3D} [prop] the signature hand prop
  * @property {THREE.Texture} [faceTex] face atlas, so the rig can drive frames
- * @property {Object<string,string>} [animFace] anim -> face frame overrides
- * @property {Object<string,number>} [style] `motion`, `armSwing`, `faceRate`
+ * @property {Object<string,string>} [animFace] anim -> 'expr', 'expr+talk' or 'expr+open' overrides
+ * @property {{joint:string, angle:number}} [mouth] a jaw joint to swing open with the mouth (Tuesday)
+ * @property {Object<string,number>} [style] `motion`, `armSwing`, `faceRate` (syllables/s while talking)
  * @property {boolean} [groundLegs] false disables the hip-height solver
  * @property {number} [emoteY] height of the emote bubble in metres
  * @property {string} [defaultAnim]
@@ -924,6 +1390,8 @@ export function createRig(profile, build, opts = {}) {
     wedgeMesh,
     attach,
     faceTexture,
+    faceAtlas,
+    prismBox,
     addFace,
     SKINS,
     POSES: opts.poses || HUMAN_POSES,
@@ -975,8 +1443,15 @@ export function createRig(profile, build, opts = {}) {
   let lookPitch = 0;
 
   /** @type {string|null} */
-  let faceOverride = null;
-  let lastFrame = '';
+  let exprOverride = null;
+  /** @type {boolean|null} */
+  let mouthOverride = null;
+  let lastCell = '';
+  const exprs = faceTex ? (faceTex.userData.faceExprs || FACE_EXPRESSIONS) : FACE_EXPRESSIONS;
+  const face = { expr: exprs[0], open: false, blink: false };
+  let blinkLeft = 0;
+  let nextBlink = 1 + Math.random() * 3;
+  let jawOpen = 0;
 
   /** @type {Array<{mesh:THREE.Mesh, mat:THREE.ShaderMaterial, t:number, done:boolean, resolve:Function, timer:number}>} */
   const emotes = [];
@@ -1044,18 +1519,72 @@ export function createRig(profile, build, opts = {}) {
    * @returns {void}
    */
   function setFace(frame) {
-    faceOverride = frame && FACE_FRAMES[frame] ? frame : null;
+    const f = frame ? FACE_FRAMES[frame] : null;
+    if (!f) { exprOverride = null; mouthOverride = null; return; }
+    if (f[0]) exprOverride = f[0];
+    mouthOverride = f[1];
   }
 
   /**
-   * @param {string} frame
+   * Holds an expression until cleared with `null`.
+   * @param {string|null} expr
    * @returns {void}
    */
-  function applyFaceFrame(frame) {
-    if (!faceTex || frame === lastFrame) return;
-    const uv = FACE_FRAMES[frame] || FACE_FRAMES.neutral;
-    faceTex.offset.set(uv[0], uv[1]);
-    lastFrame = frame;
+  function setExpression(expr) {
+    exprOverride = expr && exprs.includes(expr) ? expr : null;
+  }
+
+  /**
+   * Holds the mouth open (`true`) or shut (`false`); `null` hands it back to
+   * the animation, which flaps it while talking.
+   * @param {boolean|null} open
+   * @returns {void}
+   */
+  function setMouth(open) {
+    mouthOverride = open === null || open === undefined ? null : !!open;
+  }
+
+  /**
+   * Syllable rhythm for a flapping mouth: a hashed coin per syllable, weighted
+   * open, so talk never settles into a metronome.
+   * @param {number} t
+   * @returns {boolean}
+   */
+  function flap(t) {
+    const seg = Math.floor(t * style.faceRate);
+    const r = Math.abs(Math.sin(seg * 12.9898 + 4.1) * 43758.5453) % 1;
+    return seg % 2 === 0 ? r > 0.12 : r > 0.72;
+  }
+
+  /**
+   * Works out the face for this frame — expression, mouth, blink — and moves
+   * the atlas if it changed.
+   * @param {number} d
+   * @returns {void}
+   */
+  function stepFace(d) {
+    const active = fade < 0.5 ? prevName : animName;
+    const spec0 = String(animFace[active] || 'neutral');
+    const [e0, mode0] = spec0 === 'talk' ? ['neutral', 'talk'] : spec0.split('+');
+    face.expr = exprOverride || (exprs.includes(e0) ? e0 : exprs[0]);
+    if (mouthOverride !== null) face.open = mouthOverride;
+    else if (mode0 === 'open') face.open = true;
+    else if (mode0 === 'talk') face.open = flap(clock);
+    else face.open = false;
+
+    // blinks: every 2-5s, 0.12s long, sometimes a double; never mid-word
+    if (blinkLeft > 0) blinkLeft -= d;
+    else if ((nextBlink -= d) <= 0) {
+      blinkLeft = 0.12;
+      nextBlink = Math.random() < 0.2 ? 0.22 : 2 + Math.random() * 3;
+    }
+    face.blink = blinkLeft > 0 && !face.open && face.expr !== 'squint';
+
+    if (faceTex) {
+      const row = face.open ? 1 : (face.blink ? 2 : 0);
+      const key = `${face.expr}${row}`;
+      if (key !== lastCell) { setFaceCell(faceTex, face.expr, row); lastCell = key; }
+    }
   }
 
   /**
@@ -1260,16 +1789,10 @@ export function createRig(profile, build, opts = {}) {
     applyPose(d);
     applyLook(d);
 
-    if (faceTex) {
-      let frame = faceOverride;
-      if (!frame) {
-        const active = fade < 0.5 ? prevName : animName;
-        frame = animFace[active] || 'neutral';
-        if (frame === 'talk') {
-          frame = Math.floor(clock * style.faceRate) % 2 === 0 ? 'talk' : 'neutral';
-        }
-      }
-      applyFaceFrame(frame);
+    stepFace(d);
+    if (spec.mouth && parts[spec.mouth.joint]) {
+      jawOpen += ((face.open ? 1 : 0) - jawOpen) * Math.min(1, d * 28);
+      parts[spec.mouth.joint].rotation.x += jawOpen * spec.mouth.angle;
     }
 
     stepEmotes(d);
@@ -1310,6 +1833,10 @@ export function createRig(profile, build, opts = {}) {
     emote,
     setSitting,
     setFace,
+    setExpression,
+    setMouth,
+    expressions: () => exprs.slice(),
+    faceState: () => ({ ...face }),
     prop: spec.prop || null,
     anims: () => Object.keys(poses),
     triangles,
@@ -1320,7 +1847,7 @@ export function createRig(profile, build, opts = {}) {
 
   // Settle into the rest pose so the very first rendered frame is already posed.
   applyPose(0);
-  if (faceTex) applyFaceFrame('neutral');
+  stepFace(0);
 
   return actor;
 }
@@ -1331,9 +1858,10 @@ export function createRig(profile, build, opts = {}) {
 
 /**
  * Hangs the standard human chunk set on a joint tree: pelvis, abdomen and chest
- * slabs, a tapered head, tapered upper/lower arms with MITTEN hands, tapered
- * thighs and shins, and shoe boxes. Roughly 250 triangles, leaving each
- * character 50-650 for their silhouette hook.
+ * prisms, a front-flat head that narrows to jaw and crown, ears, hexagonal
+ * upper/lower arms and legs, MITTEN hands with a thumb, and shoes with a
+ * chamfered toe. About 500 triangles; characters `omit` whatever their outfit
+ * covers and spend the difference on their silhouette hook.
  *
  * Every piece is returned so characters can recolour, resize or hide it.
  *
@@ -1355,8 +1883,10 @@ export function createRig(profile, build, opts = {}) {
  * @param {number} [s.headD=0.25]
  * @param {number} [s.handW=0.135]
  * @param {boolean} [s.neck=true]
+ * @param {boolean} [s.ears=true]
  * @param {boolean} [s.bareArms=false] forearms in skin (short sleeves)
  * @param {boolean} [s.bareLegs=false] shins in skin (shorts)
+ * @param {string[]} [s.omit] piece keys not to build ('chest', 'abdomen', 'pelvis', 'thighL', …)
  * @returns {Object<string, THREE.Mesh>}
  */
 export function buildHuman(parts, d, s = {}) {
@@ -1374,63 +1904,86 @@ export function buildHuman(parts, d, s = {}) {
   const headW = s.headW === undefined ? 0.27 : s.headW;
   const headD = s.headD === undefined ? 0.25 : s.headD;
   const handW = s.handW === undefined ? 0.135 : s.handW;
+  const skip = new Set(s.omit || []);
 
   /** @type {Object<string, THREE.Mesh>} */
   const m = {};
+  /**
+   * @param {string} key @param {THREE.Object3D} joint @param {() => THREE.Mesh} make
+   * @param {number} x @param {number} y @param {number} z @param {number[]} [rot]
+   */
+  const put = (key, joint, make, x, y, z, rot) => {
+    if (skip.has(key)) return;
+    m[key] = attach(joint, make(), x, y, z, rot);
+  };
 
-  // pelvis
-  m.pelvis = attach(parts.hips, taperedBox(hipW, d.pelvis + 0.06, chestD * 0.82,
-    { top: waistW / hipW, bottom: 1 }, { color: legs }), 0, 0.01, 0);
+  // pelvis, abdomen, chest — three prisms, two visible seams
+  put('pelvis', parts.hips, () => prismBox(hipW, d.pelvis + 0.06, chestD * 0.82,
+    { sides: 6, top: waistW / hipW, bottom: 1 }, { color: legs }), 0, 0.01, 0);
 
-  // abdomen slab, then the chest slab — two chunks, one visible seam
-  m.abdomen = attach(parts.spine, taperedBox(waistW, d.spine, chestD * 0.86,
-    { top: (chestW * 0.86) / waistW, bottom: 1 }, { color: top }), 0, d.spine * 0.5, 0);
+  put('abdomen', parts.spine, () => prismBox(waistW, d.spine, chestD * 0.86,
+    { bevel: 0.26, top: (chestW * 0.86) / waistW, bottom: 1 }, { color: top }), 0, d.spine * 0.5, 0);
 
+  // the chest swells to the shoulder line, then slopes into the neck
   const chestH = d.chest + 0.02;
-  m.chest = attach(parts.chest, taperedBox(chestW * 0.86, chestH, chestD,
-    { top: chestW / (chestW * 0.86), bottom: 1 }, { color: top }),
+  const K = 1 / 0.86;
+  put('chest', parts.chest, () => prismBox(chestW * 0.86, chestH, chestD,
+    { bevelF: 0.2, bevelB: 0.3, rings: [[0, 1, 0.96], [0.62, K, 1.0], [1, K * 0.92, 0.80]] }, { color: top }),
   0, chestH * 0.5 - 0.02, 0);
 
   if (s.neck !== false) {
-    m.neck = attach(parts.neck, taperedBox(0.11, d.neck + 0.05, 0.10, { top: 0.9 }, { color: skin }), 0, 0.01, 0);
+    put('neck', parts.neck, () => prismBox(0.11, d.neck + 0.05, 0.10, { sides: 6, top: 0.9 }, { color: skin }),
+      0, 0.01, 0);
   }
 
-  // head: a slightly tapered box, and nothing else. The face is painted on.
-  // The head tapers on X only: the front stays a flat vertical plane so the
-  // painted face sits flush against it instead of floating off the brow.
-  m.head = attach(parts.head, taperedBox(headW, d.head, headD,
-    { top: 0.86, bottom: 1.0, topZ: 0.99, bottomZ: 1 }, { color: skin }), 0, d.head * 0.5, 0);
+  // head: a front-flat prism, narrow at the jaw, widest at the cheekbones,
+  // rounded off at the crown and the back of the skull. The face is painted on.
+  put('head', parts.head, () => prismBox(headW, d.head, headD, {
+    bevelF: 0.10, bevelB: 0.32, anchorFront: true,
+    rings: [[0, 0.78, 0.88], [0.40, 1.0, 1.0], [1, 0.88, 0.94]],
+  }, { color: skin }), 0, d.head * 0.5, 0);
+
+  if (s.ears !== false) {
+    for (const sg of [-1, 1]) {
+      put(`ear${sg < 0 ? 'L' : 'R'}`, parts.head, () => prismBox(0.03, 0.075, 0.055, { sides: 4, top: 0.8 },
+        { color: skin }), sg * (headW * 0.5 - 0.004), d.head * 0.50, -0.015, [0, 0, sg * 0.12]);
+    }
+  }
 
   for (const side of ['L', 'R']) {
     const sg = side === 'L' ? -1 : 1;
-    m[`shoulder${side}`] = attach(parts[`shoulder${side}`],
-      taperedBox(armW * 1.35, 0.12, armW * 1.3, { top: 1, bottom: 0.85 }, { color: top }), 0, -0.03, 0);
+    put(`shoulder${side}`, parts[`shoulder${side}`],
+      () => prismBox(armW * 1.35, 0.12, armW * 1.3, { sides: 6, top: 0.82, bottom: 0.95 }, { color: top }),
+      0, -0.03, 0);
 
-    m[`arm${side}`] = attach(parts[`arm${side}`],
-      taperedBox(armW, d.upperArm, armW, { top: 1.0, bottom: 0.82 }, { color: sleeve }),
+    put(`arm${side}`, parts[`arm${side}`],
+      () => prismBox(armW, d.upperArm, armW, { sides: 6, top: 1.0, bottom: 0.82 }, { color: sleeve }),
       0, -d.upperArm * 0.5, 0);
 
-    m[`fore${side}`] = attach(parts[`fore${side}`],
-      taperedBox(armW * 0.86, d.foreArm, armW * 0.86, { top: 1.0, bottom: 0.84 },
+    put(`fore${side}`, parts[`fore${side}`],
+      () => prismBox(armW * 0.86, d.foreArm, armW * 0.86, { sides: 6, top: 1.0, bottom: 0.84 },
         { color: s.bareArms ? skin : sleeve }),
       0, -d.foreArm * 0.5, 0);
 
-    // MITTEN. One box. No fingers, ever.
-    m[`hand${side}`] = attach(parts[`hand${side}`],
-      taperedBox(handW, d.hand, handW * 0.72, { top: 0.82, bottom: 0.86 }, { color: skin }),
+    // MITTEN: a faceted block and a thumb. No fingers, ever.
+    put(`hand${side}`, parts[`hand${side}`],
+      () => prismBox(handW, d.hand, handW * 0.72, { sides: 6, top: 0.82, bottom: 0.86 }, { color: skin }),
       sg * 0.004, -d.hand * 0.5, 0.006);
+    put(`thumb${side}`, parts[`hand${side}`],
+      () => wedgeMesh(handW * 0.34, d.hand * 0.55, handW * 0.30, { color: skin }),
+      -sg * handW * 0.16, -d.hand * 0.30, handW * 0.38, [Math.PI - 0.45, 0, 0]);
 
-    m[`thigh${side}`] = attach(parts[`thigh${side}`],
-      taperedBox(legW, d.thigh, legW * 1.05, { top: 1.0, bottom: 0.86 }, { color: legs }),
+    put(`thigh${side}`, parts[`thigh${side}`],
+      () => prismBox(legW, d.thigh, legW * 1.05, { sides: 6, top: 1.0, bottom: 0.86 }, { color: legs }),
       0, -d.thigh * 0.5, 0);
 
-    m[`shin${side}`] = attach(parts[`shin${side}`],
-      taperedBox(legW * 0.84, d.shin, legW * 0.9, { top: 1.0, bottom: 0.82 },
+    put(`shin${side}`, parts[`shin${side}`],
+      () => prismBox(legW * 0.84, d.shin, legW * 0.9, { sides: 6, top: 1.0, bottom: 0.82 },
         { color: s.bareLegs ? skin : legs }),
       0, -d.shin * 0.5, 0);
 
-    m[`foot${side}`] = attach(parts[`foot${side}`],
-      taperedBox(legW * 0.92, d.foot, 0.21, { top: 0.9, bottom: 1, topZ: 0.86, bottomZ: 1 }, { color: shoe }),
+    put(`foot${side}`, parts[`foot${side}`],
+      () => prismBox(legW * 0.92, d.foot, 0.21, { bevelF: 0.38, bevelB: 0, top: 0.9, topZ: 0.86 }, { color: shoe }),
       0, -d.foot * 0.5, 0.035);
   }
 

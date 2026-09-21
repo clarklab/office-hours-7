@@ -1900,7 +1900,7 @@ export function createDialogue(host) {
 
   /**
    * Shows the FF7 battle HUD. `hp` may be a string so jokes can land
-   * (`{name:'MULCH', hp:'11/11 DAYS'}`).
+   * (`{name:'MUNCH', hp:'11/11 DAYS'}`).
    * @param {PartyRow[]|null} rows null hides it
    * @returns {void}
    */

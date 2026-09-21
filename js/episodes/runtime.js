@@ -18,11 +18,13 @@
  * @module episodes/runtime
  */
 
+import { SFX_IDS, MUSIC_IDS, MUSIC_MOODS } from '../core/audio.js';
+
 /** Step verbs a viewer episode may use. Anything else is rejected. */
 export const STEP_TYPES = Object.freeze([
   'title', 'cut', 'place', 'walk', 'anim', 'face', 'say', 'nameCard',
   'wait', 'beat', 'sfx', 'music', 'toast', 'emote', 'shake', 'flash',
-  'fadeOut', 'fadeIn',
+  'fadeOut', 'fadeIn', 'slide', 'expression',
 ]);
 
 /**
@@ -36,12 +38,25 @@ export const STEP_TYPES = Object.freeze([
  */
 export const EXCLUDED_NOTE = 'battle HUD / menu / damage are not available to viewer episodes';
 
-/** Sound effect names a spec may ask for. */
-const SFX = Object.freeze(['bark', 'fanfare', 'chime', 'thud', 'beep', 'error']);
+/**
+ * Sound effect names a spec may ask for: the whole synthesised library, minus
+ * the menu blips the dialogue layer already plays on its own.
+ */
+export const SFX = Object.freeze(SFX_IDS.filter((id) => !['cursor', 'confirm', 'cancel'].includes(id)));
 /** Music cues a spec may ask for. `null` stops the music. */
-const MUSIC = Object.freeze(['lobby', 'chase', 'victory', 'tension']);
-/** Emotes a spec may ask for. */
-const EMOTES = Object.freeze(['sweat', 'note', 'anger', 'idea', 'love', 'shock']);
+export const MUSIC = MUSIC_IDS;
+/** One line per music cue, for the generator's prompt. */
+export const MUSIC_HELP = MUSIC_MOODS;
+/**
+ * Emotes a spec may ask for. The last four are old names kept so stored specs
+ * still validate; the rig draws them as a question mark.
+ */
+const EMOTES = Object.freeze(['sweat', 'anger', 'question', 'exclaim', 'heart', 'money', 'zzz',
+  'note', 'idea', 'love', 'shock']);
+/** Facial expressions every face atlas carries. */
+export const EXPRESSIONS = Object.freeze(['neutral', 'happy', 'shocked', 'squint']);
+/** Where a slide can go. */
+export const SURFACES = Object.freeze(['projector', 'meetingBoard', 'whiteboard']);
 
 const MAX_STEPS = 140;
 const MAX_LINE = 84;
@@ -146,8 +161,28 @@ export function validateSpec(spec, vocab) {
         if (st.actor !== null && st.actor !== undefined && !actorOk('actor')) break;
         if (!isStr(st.text)) { push(`${at}: text is required`); break; }
         if (st.text.length > MAX_LINE) push(`${at}: line is ${st.text.length} characters, over ${MAX_LINE}`);
+        if (st.sfx !== undefined && !SFX.includes(st.sfx)) push(`${at}: unknown sfx "${st.sfx}" on a line`);
         break;
       }
+      case 'slide': {
+        if (!SURFACES.includes(st.surface)) push(`${at}: surface must be one of ${SURFACES.join(', ')}`);
+        const slides = vocab.slides || [];
+        if (st.id !== null && !slides.includes(st.id)) {
+          push(`${at}: unknown slide "${st.id}" (allowed: ${slides.join(', ')}, or null)`);
+        }
+        if (st.text !== undefined && (!isStr(st.text) || st.text.length > MAX_LINE)) {
+          push(`${at}: slide text must be a string of at most ${MAX_LINE} characters`);
+        }
+        if (st.title !== undefined && (!isStr(st.title) || st.title.length > MAX_TITLE)) {
+          push(`${at}: slide title must be a string of at most ${MAX_TITLE} characters`);
+        }
+        break;
+      }
+      case 'expression':
+        if (actorOk('actor') && st.name !== null && !EXPRESSIONS.includes(st.name)) {
+          push(`${at}: expression must be one of ${EXPRESSIONS.join(', ')}, or null`);
+        }
+        break;
       case 'nameCard':
         actorOk('actor');
         break;
@@ -235,9 +270,21 @@ export async function runSpec(ctx, spec) {
       case 'anim': if (a) d.anim(a, st.name); break;
       case 'emote': if (a) d.emote(a, st.name); break;
       case 'face': if (a) d.face(a, who(st.target) || st.target); break;
-      case 'say':
-        await d.say(a, st.text, st.at ? { at: st.at } : {});
+      case 'say': {
+        const o = st.at ? { at: st.at } : {};
+        if (isStr(st.sfx)) { o.sfx = st.sfx; if (st.sfxAt === 'end') o.sfxAt = 'end'; }
+        await d.say(a, st.text, o);
         break;
+      }
+      case 'slide': {
+        // only the text-ish opts, never an arbitrary object off the wire
+        const o = {};
+        if (isStr(st.text)) o.text = st.text;
+        if (isStr(st.title)) o.title = st.title;
+        if (typeof d.slide === 'function') d.slide(st.surface, st.id === null ? null : st.id, o);
+        break;
+      }
+      case 'expression': if (a && typeof d.expression === 'function') d.expression(a, st.name || null); break;
       case 'nameCard': if (a) await d.nameCard(a, { ms: 1750 }); break;
       case 'wait': await d.wait(st.ms); break;
       case 'beat': await d.beat(st.ms); break;

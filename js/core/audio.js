@@ -20,7 +20,7 @@
  * @module core/audio
  */
 
-/** @typedef {'brad'|'dez'|'kiki'|'roop'|'marge'|'tuesday'|'narrator'} VoiceId */
+/** @typedef {'brad'|'dez'|'kiki'|'roop'|'marge'|'tuesday'|'gary'|'narrator'} VoiceId */
 
 /* ------------------------------------------------------------------ *
  * Graph state
@@ -289,8 +289,40 @@ const VOICES = {
   marge: { kind: 'pulse', base: 340, spread: 1.6, rate: 0.092, dur: 0.075, gain: 0.34 },
   // Not speech. A borf.
   tuesday: { kind: 'borf', base: 265, spread: 3.0, rate: 0.16, dur: 0.19, gain: 0.55 },
+  // GARY. Guest client, 1987 forever. Doubled sawtooth driven into a soft
+  // clipper, a boxy nasal honk (notch at 650, peaks at 1.25k and 2.7k), and a
+  // pitch that jumps up and then FALLS on every syllable — shouted, not sung.
+  // Every blip is a little "HEY!". Wide spread, fast rate: a car-lot bark.
+  gary: { kind: 'huckster', base: 232, spread: 5.5, rate: 0.074, dur: 0.13, gain: 0.27 },
   narrator: { kind: 'neutral', base: 300, spread: 2.5, rate: 0.086, dur: 0.11, gain: 0.34 },
 };
+
+/**
+ * Every voice profile id, for tooling and authoring validation.
+ * @type {ReadonlyArray<VoiceId>}
+ */
+export const VOICE_IDS = Object.freeze(/** @type {VoiceId[]} */ (Object.keys(VOICES)));
+
+/** @type {Float32Array|null} */
+let driveCurveCache = null;
+
+/**
+ * Soft-clip (tanh) curve for a WaveShaper. Built once, shared.
+ * @returns {Float32Array}
+ */
+function driveCurve() {
+  if (driveCurveCache) return driveCurveCache;
+  const n = 1024;
+  const c = new Float32Array(n);
+  const k = 3.2;
+  const norm = Math.tanh(k);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    c[i] = Math.tanh(k * x) / norm;
+  }
+  driveCurveCache = c;
+  return c;
+}
 
 /**
  * @param {string} id
@@ -438,6 +470,37 @@ function blipAt(p, ch, t, dest) {
       o.connect(lp); lp.connect(og); og.connect(g);
       env(g.gain, t, p.gain, 0.005, d * 0.18, d * 0.6);
       o.start(t); o.stop(t + d + 0.06);
+      break;
+    }
+    case 'huckster': {
+      // Two slightly detuned saws, jump-then-fall pitch, driven, then carved
+      // into a honk: hollow at 650 Hz, loud at 1.25k / 2.7k. Nothing else in
+      // the cast has a falling contour AND a driven edge.
+      const pre = ctx.createGain();
+      pre.gain.value = 0.55;
+      const oscs = [];
+      for (const cents of [-9, 11]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.detune.value = cents;
+        o.frequency.setValueAtTime(f * 1.22, t);
+        o.frequency.exponentialRampToValueAtTime(f * 1.05, t + 0.028);
+        o.frequency.exponentialRampToValueAtTime(f * 0.78, t + d);
+        o.connect(pre);
+        oscs.push(o);
+      }
+      const drive = ctx.createWaveShaper();
+      drive.curve = driveCurve();
+      const hp = filt('highpass', 230, 0.7);
+      const notch = filt('notch', 650, 1.6);
+      const nose = filt('peaking', 1250, 4.5);
+      nose.gain.value = 11;
+      const nose2 = filt('peaking', 2700, 3.5);
+      nose2.gain.value = 6;
+      const lp = filt('lowpass', 4600, 0.7);
+      chain([pre, drive, hp, notch, nose, nose2, lp, g]);
+      env(g.gain, t, p.gain, 0.004, d * 0.4, d * 0.45);
+      for (const o of oscs) { o.start(t); o.stop(t + d + 0.06); }
       break;
     }
     default: {
@@ -596,23 +659,150 @@ function hiss(o) {
     o.hold == null ? 0 : o.hold, o.rel == null ? 0.1 : o.rel, o.hard);
 }
 
+/** @typedef {'cursor'|'confirm'|'cancel'|'error'|'chime'|'fanfare'|'bark'|'phone'|'crash'|'stamp'|'whoosh'|'shred'|'typewriter'|'boing'|'bonk'|'plunk'|'pop'|'ding'|'success'|'cheer'|'applause'|'rimshot'|'sadTrombone'|'slideWhistle'|'slideDown'|'recordScratch'|'gasp'|'chomp'|'thud'|'beep'|'honk'|'sparkle'|'drumroll'} SfxId */
+
+/**
+ * Every id {@link playSfx} accepts, UI/menu sounds first, then the comedy
+ * foley pack. Frozen; use it for validation and tooling.
+ * @type {ReadonlyArray<SfxId>}
+ */
+export const SFX_IDS = Object.freeze(/** @type {SfxId[]} */ ([
+  'cursor', 'confirm', 'cancel', 'error', 'chime', 'fanfare', 'bark', 'phone',
+  'crash', 'stamp', 'whoosh', 'shred', 'typewriter',
+  'boing', 'bonk', 'plunk', 'pop', 'ding', 'success', 'cheer', 'applause',
+  'rimshot', 'sadTrombone', 'slideWhistle', 'slideDown', 'recordScratch',
+  'gasp', 'chomp', 'thud', 'beep', 'honk', 'sparkle', 'drumroll',
+]));
+
+/**
+ * Loudness trims (measured) so the busy, spread-out foley sounds land at the
+ * same perceived level as the menu triad instead of being tuned note-by-note.
+ * @type {Object<string, number>}
+ */
+const SFX_TRIM = {
+  applause: 3.5, cheer: 3, gasp: 3, sadTrombone: 2.5, recordScratch: 2.2,
+  success: 1.8, sparkle: 2.5, beep: 1.6, drumroll: 1.5,
+};
+
+/**
+ * Small deterministic PRNG (LCG) so crowd sounds are varied inside one hit but
+ * identical on every replay.
+ * @param {number} seed
+ * @returns {() => number} 0..1
+ */
+function rng(seed) {
+  let s = (seed * 2654435761) >>> 0 || 1;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/**
+ * One hand clap: a short band of noise at a slightly random centre.
+ * @param {number} t
+ * @param {number} gain
+ * @param {() => number} rand
+ * @returns {void}
+ */
+function clap(t, gain, rand) {
+  hiss({ t, filter: 'bandpass', cutoff: 900 + rand() * 1400, q: 1.2 + rand() * 0.8, gain,
+    atk: 0.001, hold: 0.004, rel: 0.03 + rand() * 0.03 });
+}
+
+/**
+ * One crowd voice going "yaaay": a vibrato saw through two formant bands, the
+ * second sliding up (a -> ay) while the pitch lifts and settles.
+ * @param {number} t
+ * @param {number} f fundamental
+ * @param {number} dur
+ * @param {number} gain
+ * @param {() => number} rand
+ * @returns {void}
+ */
+function crowdVoice(t, f, dur, gain, rand) {
+  const o = ctx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f * 0.85, t);
+  o.frequency.exponentialRampToValueAtTime(f * 1.18, t + 0.25);
+  o.frequency.exponentialRampToValueAtTime(f, t + dur);
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 5.5 + rand() * 2;
+  const lg = ctx.createGain();
+  lg.gain.value = 22;
+  lfo.connect(lg); lg.connect(o.detune);
+  const f1 = filt('bandpass', 760, 5);
+  const f2 = filt('bandpass', 1100, 7);
+  f2.frequency.setValueAtTime(1100, t);
+  f2.frequency.exponentialRampToValueAtTime(1950, t + dur * 0.55);
+  const g = ctx.createGain();
+  o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(sfxBus);
+  const end = env(g.gain, t, gain, 0.08, dur * 0.45, dur * 0.5);
+  o.start(t); o.stop(end + 0.03);
+  lfo.start(t); lfo.stop(end + 0.03);
+}
+
+/**
+ * One plunger-muted trombone note for `sadTrombone`: saw through a bandpass
+ * that opens and closes ("wah"), with an optional sagging vibrato.
+ * @param {number} t
+ * @param {number} f
+ * @param {number} d
+ * @param {number} gain
+ * @param {boolean} vib
+ * @returns {void}
+ */
+function wahNote(t, f, d, gain, vib) {
+  const o = ctx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f * 0.97, t);
+  o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+  if (vib) o.frequency.exponentialRampToValueAtTime(f * 0.96, t + d);
+  const bp = filt('bandpass', f * 2, 5);
+  bp.frequency.setValueAtTime(f * 2, t);
+  bp.frequency.exponentialRampToValueAtTime(f * 6, t + Math.min(0.16, d * 0.45));
+  bp.frequency.exponentialRampToValueAtTime(f * 2.4, t + d);
+  const lp = filt('lowpass', f * 3, 0.8);
+  const body = ctx.createGain();
+  body.gain.value = 0.5;
+  const g = ctx.createGain();
+  o.connect(bp); bp.connect(g);
+  o.connect(lp); lp.connect(body); body.connect(g);
+  g.connect(sfxBus);
+  const end = env(g.gain, t, gain, 0.03, d * 0.55, d * 0.4);
+  o.start(t); o.stop(end + 0.03);
+  if (vib) {
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 5.5;
+    const lg = ctx.createGain();
+    lg.gain.setValueAtTime(0, t);
+    lg.gain.linearRampToValueAtTime(0, t + 0.18);
+    lg.gain.linearRampToValueAtTime(45, t + 0.45);
+    lfo.connect(lg); lg.connect(o.detune);
+    lfo.start(t); lfo.stop(end + 0.03);
+  }
+}
+
 /**
  * Plays a one-shot sound effect.
  *
  * `cursor` / `confirm` / `cancel` are the 32-bit JRPG menu triad and get used
- * constantly, so they are the most carefully tuned sounds in the file.
+ * constantly, so they are the most carefully tuned sounds in the file. From
+ * `boing` on is the comedy foley pack for scenes and dialogue triggers.
+ * Unknown ids are ignored. See {@link SFX_IDS}.
  *
- * @param {'cursor'|'confirm'|'cancel'|'error'|'chime'|'fanfare'|'bark'|'phone'|'crash'|'stamp'|'whoosh'|'shred'|'typewriter'} id
+ * @param {SfxId} id
  * @param {Object} [opts]
  * @param {number} [opts.gain=1] level multiplier
  * @param {number} [opts.when=0] delay in seconds
  * @param {number} [opts.rate=1] pitch multiplier
- * @param {number} [opts.duration] length override, honoured by `shred` and `whoosh`
+ * @param {number} [opts.duration] length override, honoured by `shred`, `whoosh`,
+ *   `drumroll`, `applause`, `cheer`, `beep`, `slideWhistle` and `slideDown`
  * @returns {void}
  */
 export function playSfx(id, opts = {}) {
   if (!live()) return;
-  const v = opts.gain == null ? 1 : opts.gain;
+  const v = (opts.gain == null ? 1 : opts.gain) * (SFX_TRIM[id] || 1);
   const r = opts.rate == null ? 1 : opts.rate;
   const t = ctx.currentTime + 0.005 + Math.max(0, opts.when || 0);
 
@@ -774,6 +964,258 @@ export function playSfx(id, opts = {}) {
       break;
     }
 
+    /* ---------------- comedy foley pack ---------------- */
+
+    case 'boing': {
+      // Jaw-harp spring: a buzzy saw through a narrow bandpass whose centre is
+      // wobbled by a slowing LFO, over a sine body with a decaying vibrato.
+      const d = 0.62;
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(104 * r, t);
+      o.frequency.exponentialRampToValueAtTime(152 * r, t + d);
+      const bp = filt('bandpass', 760 * r, 8);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(17, t);
+      lfo.frequency.exponentialRampToValueAtTime(8, t + d);
+      const depth = ctx.createGain();
+      depth.gain.setValueAtTime(560 * r, t);
+      depth.gain.exponentialRampToValueAtTime(20, t + d);
+      lfo.connect(depth); depth.connect(bp.frequency);
+      const g = ctx.createGain();
+      o.connect(bp); bp.connect(g); g.connect(sfxBus);
+      const end = env(g.gain, t, 0.36 * v, 0.003, 0.02, d);
+      o.start(t); o.stop(end + 0.03);
+      lfo.start(t); lfo.stop(end + 0.03);
+      const body = tone({ t, type: 'sine', f0: 210 * r, f1: 300 * r, dur: d, gain: 0.16 * v, atk: 0.003, rel: d });
+      const vib = ctx.createOscillator();
+      vib.frequency.value = 13;
+      const vd = ctx.createGain();
+      vd.gain.setValueAtTime(60 * r, t);
+      vd.gain.exponentialRampToValueAtTime(1, t + d);
+      vib.connect(vd); vd.connect(body.frequency);
+      vib.start(t); vib.stop(t + d + 0.05);
+      break;
+    }
+
+    case 'bonk': {
+      // Hollow coconut-on-skull: fast falling sine, a wooden click, a ring.
+      tone({ t, type: 'sine', f0: 640 * r, f1: 190 * r, glide: 0.06, dur: 0.17, gain: 0.42 * v, atk: 0.001, rel: 0.16 });
+      tone({ t, type: 'triangle', f0: 1280 * r, f1: 900 * r, glide: 0.04, dur: 0.06, gain: 0.12 * v, atk: 0.001, rel: 0.05 });
+      tone({ t, type: 'square', f0: 318 * r, dur: 0.14, gain: 0.07 * v, atk: 0.001, rel: 0.13,
+        filter: 'bandpass', cutoff: 636 * r, q: 11 });
+      hiss({ t, filter: 'bandpass', cutoff: 3000 * r, q: 2, gain: 0.2 * v, atk: 0.001, hold: 0.003, rel: 0.015, hard: true });
+      break;
+    }
+
+    case 'plunk': {
+      // Droplet into a mug: a rising sine blip with a bright ghost partial.
+      tone({ t, type: 'sine', f0: 520 * r, f1: 1450 * r, glide: 0.06, dur: 0.14, gain: 0.34 * v, atk: 0.001, hold: 0.01, rel: 0.12 });
+      tone({ t, type: 'sine', f0: 1040 * r, f1: 2600 * r, glide: 0.05, dur: 0.08, gain: 0.06 * v, atk: 0.001, rel: 0.07 });
+      tone({ t, type: 'triangle', f0: 260 * r, dur: 0.035, gain: 0.1 * v, atk: 0.001, rel: 0.03 });
+      break;
+    }
+
+    case 'pop': {
+      // Bubble / cork: a very short upward sine chirp and a click.
+      tone({ t, type: 'sine', f0: 380 * r, f1: 1500 * r, glide: 0.03, dur: 0.06, gain: 0.34 * v, atk: 0.001, rel: 0.05 });
+      hiss({ t, filter: 'bandpass', cutoff: 2400 * r, q: 1, gain: 0.18 * v, atk: 0.001, hold: 0.002, rel: 0.012, hard: true });
+      break;
+    }
+
+    case 'ding': {
+      // Front-desk service bell. Higher and purer than `chime`, one strike.
+      const f = 2637 * r;
+      for (const [m, a] of [[1, 0.15], [1.004, 0.05], [2.32, 0.06], [4.25, 0.025], [6.8, 0.01]]) {
+        tone({ t, type: 'sine', f0: f * m, dur: 1.6, gain: a * v, atk: 0.002, hold: 0.01, rel: 1.55 / Math.sqrt(m) });
+      }
+      hiss({ t, filter: 'highpass', cutoff: 6000, q: 0.7, gain: 0.06 * v, atk: 0.001, hold: 0.002, rel: 0.02, hard: true });
+      break;
+    }
+
+    case 'success': {
+      // Quick major arpeggio up to a sparkling top note. Smaller than fanfare.
+      const notes = [1046.5, 1318.5, 1568, 2093];
+      notes.forEach((f, i) => {
+        const last = i === notes.length - 1;
+        const len = last ? 0.5 : 0.1;
+        tone({ t: t + i * 0.07, type: 'square', f0: f * r, dur: len, gain: 0.14 * v, atk: 0.003,
+          hold: last ? 0.08 : 0.03, rel: last ? 0.42 : 0.07, filter: 'lowpass', cutoff: 5200, q: 0.8 });
+        tone({ t: t + i * 0.07, type: 'triangle', f0: f * 2 * r, dur: len, gain: 0.05 * v, atk: 0.003, rel: len });
+      });
+      tone({ t: t + 0.26, type: 'sine', f0: 4186 * r, dur: 0.7, gain: 0.05 * v, atk: 0.003, rel: 0.7 });
+      tone({ t: t + 0.32, type: 'sine', f0: 5274 * r, dur: 0.5, gain: 0.03 * v, atk: 0.003, rel: 0.5 });
+      break;
+    }
+
+    case 'cheer': {
+      // Small crowd "yaaay": formant-filtered saw voices sliding a -> ay, a
+      // crowd-noise swell, and a scatter of claps.
+      const dur = Math.max(0.6, opts.duration || 1.4);
+      const rand = rng(11);
+      for (let i = 0; i < 7; i++) crowdVoice(t + i * 0.022 + rand() * 0.03, (190 + ((i * 73) % 170)) * r, dur * (0.8 + rand() * 0.25), 0.075 * v, rand);
+      hiss({ t, filter: 'bandpass', cutoff: 1200 * r, q: 0.8, gain: 0.08 * v, atk: 0.12, hold: dur * 0.4, rel: dur * 0.5 });
+      for (let i = 0; i < 12; i++) clap(t + 0.18 + rand() * dur * 0.9, (0.1 + rand() * 0.08) * v, rand);
+      break;
+    }
+
+    case 'applause': {
+      // Polite office applause: dense random claps over a hiss bed, swelling
+      // in and thinning out. Honours opts.duration.
+      const dur = Math.max(0.8, opts.duration || 2.6);
+      const rand = rng(29);
+      const n = Math.round(dur * 42);
+      for (let i = 0; i < n; i++) {
+        const u = rand();
+        const at = u * dur;
+        const shape = Math.min(1, at / 0.25) * (at > dur * 0.6 ? 1 - (at - dur * 0.6) / (dur * 0.45) : 1);
+        clap(t + at, (0.05 + rand() * 0.08) * Math.max(0.08, shape) * v, rand);
+      }
+      hiss({ t, filter: 'bandpass', cutoff: 2000 * r, q: 0.5, gain: 0.06 * v, atk: 0.25, hold: Math.max(0, dur - 0.9), rel: 0.65 });
+      break;
+    }
+
+    case 'rimshot': {
+      // Ba-dum-tss.
+      hiss({ t, filter: 'bandpass', cutoff: 2000 * r, q: 0.8, gain: 0.3 * v, atk: 0.001, hold: 0.01, rel: 0.1 });
+      tone({ t, type: 'triangle', f0: 330 * r, f1: 250 * r, glide: 0.05, dur: 0.08, gain: 0.15 * v, atk: 0.001, rel: 0.08 });
+      const t2 = t + 0.15;
+      tone({ t: t2, type: 'sine', f0: 180 * r, f1: 118 * r, glide: 0.12, dur: 0.22, gain: 0.38 * v, atk: 0.001, rel: 0.21 });
+      hiss({ t: t2, filter: 'bandpass', cutoff: 1500 * r, q: 0.8, gain: 0.16 * v, atk: 0.001, hold: 0.006, rel: 0.08 });
+      const t3 = t + 0.42;
+      hiss({ t: t3, filter: 'highpass', cutoff: 6500 * r, q: 0.6, gain: 0.2 * v, atk: 0.002, hold: 0.05, rel: 0.95 });
+      hiss({ t: t3, filter: 'bandpass', cutoff: 9000 * r, q: 2, gain: 0.07 * v, atk: 0.002, hold: 0.03, rel: 0.7 });
+      tone({ t: t3, type: 'sine', f0: 120 * r, f1: 45 * r, glide: 0.1, dur: 0.18, gain: 0.34 * v, atk: 0.001, rel: 0.17 });
+      hiss({ t: t3, filter: 'bandpass', cutoff: 2000 * r, q: 0.8, gain: 0.22 * v, atk: 0.001, hold: 0.01, rel: 0.1 });
+      break;
+    }
+
+    case 'sadTrombone': {
+      // Wah, wah, wah, waaaaah — plunger-muted slide down by semitones, the
+      // last one held with a wobbling vibrato.
+      const seq = [[0, 233.08, 0.36], [0.42, 220, 0.36], [0.84, 207.65, 0.36], [1.26, 196, 1.15]];
+      seq.forEach(([d, f, len], i) => wahNote(t + d, f * r, len, 0.3 * v, i === seq.length - 1));
+      break;
+    }
+
+    case 'slideWhistle':
+    case 'slideDown': {
+      const up = id === 'slideWhistle';
+      const dur = Math.max(0.2, opts.duration || 0.6);
+      const o = tone({ t, type: 'sine', f0: (up ? 480 : 1900) * r, f1: (up ? 1900 : 420) * r, dur,
+        gain: 0.26 * v, atk: 0.03, hold: dur - 0.08, rel: 0.06 });
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 7;
+      const lg = ctx.createGain();
+      lg.gain.value = 18;
+      lfo.connect(lg); lg.connect(o.detune);
+      lfo.start(t); lfo.stop(t + dur + 0.05);
+      hiss({ t, filter: 'bandpass', cutoff: (up ? 900 : 3000) * r, cutoff1: (up ? 3000 : 900) * r, fglide: dur,
+        q: 3, gain: 0.03 * v, atk: 0.03, hold: dur - 0.08, rel: 0.06 });
+      break;
+    }
+
+    case 'recordScratch': {
+      // Needle dragged back, then forward: two opposed filter sweeps.
+      hiss({ t, filter: 'bandpass', cutoff: 2600 * r, cutoff1: 600 * r, fglide: 0.11, q: 2.5, gain: 0.3 * v, atk: 0.005, hold: 0.06, rel: 0.05 });
+      tone({ t, type: 'sawtooth', f0: 380 * r, f1: 110 * r, glide: 0.12, dur: 0.12, gain: 0.12 * v, atk: 0.004, hold: 0.06, rel: 0.05,
+        filter: 'lowpass', cutoff: 1500, q: 1.5 });
+      const t2 = t + 0.13;
+      hiss({ t: t2, filter: 'bandpass', cutoff: 700 * r, cutoff1: 3200 * r, fglide: 0.09, q: 2.5, gain: 0.26 * v, atk: 0.005, hold: 0.05, rel: 0.06 });
+      tone({ t: t2, type: 'sawtooth', f0: 120 * r, f1: 420 * r, glide: 0.1, dur: 0.1, gain: 0.1 * v, atk: 0.004, hold: 0.05, rel: 0.05,
+        filter: 'lowpass', cutoff: 1500, q: 1.5 });
+      break;
+    }
+
+    case 'gasp': {
+      // Crowd sharp inhale: rising breathy bands plus a few voiced "hah"s.
+      hiss({ t, filter: 'bandpass', cutoff: 1100 * r, cutoff1: 2100 * r, fglide: 0.3, q: 1.8, gain: 0.22 * v, atk: 0.07, hold: 0.12, rel: 0.14 });
+      hiss({ t, filter: 'bandpass', cutoff: 2800 * r, q: 3, gain: 0.08 * v, atk: 0.07, hold: 0.1, rel: 0.12 });
+      const rand = rng(5);
+      for (let i = 0; i < 4; i++) {
+        tone({ t: t + rand() * 0.04, type: 'sawtooth', f0: (260 + i * 37) * r, f1: (330 + i * 40) * r, dur: 0.28,
+          gain: 0.03 * v, atk: 0.06, hold: 0.08, rel: 0.14, filter: 'bandpass', cutoff: 1500 * r, q: 4 });
+      }
+      break;
+    }
+
+    case 'chomp': {
+      // Dog bite: a hard tooth snap, a clack, a jaw thump and a wet crunch.
+      hiss({ t, filter: 'highpass', cutoff: 2200 * r, q: 0.8, gain: 0.45 * v, atk: 0.001, hold: 0.008, rel: 0.03, hard: true });
+      tone({ t, type: 'square', f0: 1650 * r, dur: 0.04, gain: 0.22 * v, atk: 0.001, rel: 0.035, filter: 'bandpass', cutoff: 1650 * r, q: 6 });
+      tone({ t, type: 'square', f0: 2400 * r, dur: 0.03, gain: 0.1 * v, atk: 0.001, rel: 0.025, filter: 'bandpass', cutoff: 2400 * r, q: 6 });
+      tone({ t, type: 'sine', f0: 170 * r, f1: 55 * r, glide: 0.08, dur: 0.14, gain: 0.42 * v, atk: 0.002, rel: 0.12 });
+      hiss({ t: t + 0.012, filter: 'bandpass', cutoff: 900 * r, cutoff1: 380 * r, fglide: 0.09, q: 2, gain: 0.2 * v, atk: 0.004, hold: 0.03, rel: 0.08 });
+      break;
+    }
+
+    case 'thud': {
+      // A body, a box, or a binder hitting carpet. Dull and short, no ring.
+      tone({ t, type: 'sine', f0: 95 * r, f1: 38 * r, glide: 0.2, dur: 0.35, gain: 0.5 * v, atk: 0.002, hold: 0.02, rel: 0.32 });
+      tone({ t, type: 'triangle', f0: 190 * r, f1: 80 * r, glide: 0.06, dur: 0.08, gain: 0.12 * v, atk: 0.002, rel: 0.07 });
+      hiss({ t, filter: 'lowpass', cutoff: 700 * r, cutoff1: 200, fglide: 0.15, q: 0.9, gain: 0.25 * v, atk: 0.002, hold: 0.02, rel: 0.15 });
+      break;
+    }
+
+    case 'beep': {
+      // Plain 1 kHz beep. Honours opts.duration, so it doubles as a censor bleep.
+      const dur = Math.max(0.04, opts.duration || 0.16);
+      tone({ t, type: 'sine', f0: 1000 * r, dur, gain: 0.22 * v, atk: 0.004, hold: Math.max(0, dur - 0.014), rel: 0.01 });
+      tone({ t, type: 'square', f0: 1000 * r, dur, gain: 0.05 * v, atk: 0.004, hold: Math.max(0, dur - 0.014), rel: 0.01,
+        filter: 'lowpass', cutoff: 3000, q: 0.7 });
+      break;
+    }
+
+    case 'honk': {
+      // Clown / bike horn: two detuned reedy saws scooping up into a nasal band.
+      const d = 0.28;
+      const g = ctx.createGain();
+      const bp = filt('bandpass', 1100 * r, 2.5);
+      const lp = filt('lowpass', 3200, 0.7);
+      bp.connect(lp); lp.connect(g); g.connect(sfxBus);
+      const oscs = [440, 446].map((f) => {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f * 0.86 * r, t);
+        o.frequency.exponentialRampToValueAtTime(f * r, t + 0.04);
+        o.frequency.exponentialRampToValueAtTime(f * 0.97 * r, t + d);
+        o.connect(bp);
+        return o;
+      });
+      const end = env(g.gain, t, 0.5 * v, 0.01, d * 0.6, d * 0.4);
+      for (const o of oscs) { o.start(t); o.stop(end + 0.03); }
+      break;
+    }
+
+    case 'sparkle': {
+      // Magic twinkle: a quick run of high pentatonic pips and a hiss shimmer.
+      const steps = [0, 4, 7, 12, 16, 19, 24, 21, 28];
+      steps.forEach((k, i) => {
+        const f = 2093 * Math.pow(2, k / 12) * r;
+        tone({ t: t + i * 0.045, type: 'sine', f0: f, dur: 0.25, gain: 0.09 * v, atk: 0.002, rel: 0.25 });
+        tone({ t: t + i * 0.045, type: 'triangle', f0: f * 2, dur: 0.1, gain: 0.025 * v, atk: 0.002, rel: 0.1 });
+      });
+      hiss({ t, filter: 'highpass', cutoff: 8000, q: 0.7, gain: 0.04 * v, atk: 0.05, hold: 0.2, rel: 0.3 });
+      break;
+    }
+
+    case 'drumroll': {
+      // Snare roll that builds for opts.duration seconds (default 2), then a
+      // cymbal crash + kick on the button.
+      const dur = Math.max(0.4, opts.duration || 2);
+      let i = 0;
+      for (let at = 0; at < dur; at += 0.032, i++) {
+        const lvl = (0.07 + 0.15 * (at / dur)) * (i % 2 ? 0.78 : 1) * v;
+        hiss({ t: t + at, filter: 'bandpass', cutoff: 2200 * r, q: 0.8, gain: lvl, atk: 0.001, hold: 0.004, rel: 0.05 });
+      }
+      const te = t + dur;
+      hiss({ t: te, filter: 'highpass', cutoff: 5500 * r, q: 0.5, gain: 0.22 * v, atk: 0.002, hold: 0.05, rel: 1.2 });
+      hiss({ t: te, filter: 'bandpass', cutoff: 3500 * r, q: 1.5, gain: 0.08 * v, atk: 0.002, hold: 0.03, rel: 0.9 });
+      hiss({ t: te, filter: 'bandpass', cutoff: 2000 * r, q: 0.8, gain: 0.26 * v, atk: 0.001, hold: 0.01, rel: 0.12 });
+      tone({ t: te, type: 'sine', f0: 120 * r, f1: 45 * r, glide: 0.1, dur: 0.2, gain: 0.4 * v, atk: 0.001, rel: 0.19 });
+      break;
+    }
+
     default:
       break;
   }
@@ -819,11 +1261,46 @@ function parseTok(tok) {
 const pat = (s) => s.trim().split(/\s+/);
 
 /**
+ * A music track. Pattern tokens: '.', 'x' (noise hit), 'A3', 'A3:4' (4 steps
+ * long), 'A3+C4+E4:6' (chord). A track shorter than the cue repeats, so a
+ * one-bar drum pattern can sit under an eight-bar melody.
+ * @typedef {Object} MusicTrack
+ * @property {string[]} pat
+ * @property {number} gain
+ * @property {OscillatorType|'pulse'} [wave='triangle']
+ * @property {boolean} [noise] play noise hits ('x') instead of notes
+ * @property {number} [atk] seconds
+ * @property {number} [hold] fixed hold in seconds (default: fills the note)
+ * @property {number} [rel] seconds
+ * @property {boolean} [hard] linear release (gated)
+ * @property {BiquadFilterType} [filter]
+ * @property {number} [cutoff]
+ * @property {number} [q]
+ * @property {number} [detune] cents
+ * @property {number} [transpose] semitones
+ * @property {number} [glide] start at freq * glide, sliding to the note (kicks, scoops)
+ * @property {number} [glideTime=0.05] seconds
+ * @property {number} [vib] vibrato depth in cents (fades in)
+ * @property {number} [vibRate=5.5] Hz
+ */
+
+/**
  * @typedef {Object} MusicDef
  * @property {number} stepDur seconds per sequencer step
  * @property {boolean} loop
- * @property {Array<Object>} tracks
+ * @property {number} [swing=0] fraction of a step to delay every odd step
+ * @property {number} [level=1] cue loudness trim
+ * @property {MusicTrack[]} tracks
  */
+
+/* Percussion building blocks shared by the cues. One-bar patterns loop. */
+
+/** @param {string} p @param {number} [gain] @returns {MusicTrack} */
+const KICK = (p, gain = 0.3) => ({ wave: 'sine', gain, atk: 0.002, hold: 0.02, rel: 0.13, glide: 3.4, glideTime: 0.06, pat: pat(p) });
+/** @param {string} p @param {number} [gain] @returns {MusicTrack} */
+const HAT = (p, gain = 0.04) => ({ noise: true, gain, atk: 0.001, rel: 0.025, filter: 'highpass', cutoff: 7200, q: 0.7, pat: pat(p) });
+/** @param {string} p @param {number} [gain] @param {Object} [o] overrides @returns {MusicTrack} */
+const SNARE = (p, gain = 0.07, o = {}) => ({ noise: true, gain, atk: 0.001, rel: 0.09, filter: 'bandpass', cutoff: 1900, q: 0.7, ...o, pat: pat(p) });
 
 /** @type {Object<string, MusicDef>} */
 const MUSIC = {
@@ -936,13 +1413,487 @@ const MUSIC = {
       },
     ],
   },
+
+  // Bouncy major-key office pop. C major, 124bpm, I-vi-IV-V.
+  happy: {
+    stepDur: 60 / 124 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'triangle', gain: 0.46, atk: 0.005, rel: 0.08, filter: 'lowpass', cutoff: 800, q: 1,
+        pat: pat(`
+          C2 . G2 . C3 . G2 .
+          A1 . E2 . A2 . E2 .
+          F1 . C2 . F2 . C2 .
+          G1 . D2 . G2 . B1 .`),
+      },
+      {
+        wave: 'pulse', gain: 0.13, atk: 0.003, hold: 0.05, rel: 0.06, filter: 'lowpass', cutoff: 2400, q: 0.8,
+        pat: pat(`
+          . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4
+          . A3+C4+E4 . A3+C4+E4 . A3+C4+E4 . A3+C4+E4
+          . A3+C4+F4 . A3+C4+F4 . A3+C4+F4 . A3+C4+F4
+          . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4`),
+      },
+      {
+        wave: 'square', gain: 0.14, atk: 0.004, rel: 0.1, filter: 'lowpass', cutoff: 3200, q: 0.8, vib: 8,
+        pat: pat(`
+          E5:2 . G5 C6 G5:2 . E5 D5
+          C5:2 . E5 A5 E5:2 . C5 B4
+          A4:2 . C5 F5 A5:2 . G5 F5
+          G4:2 . B4 D5 G5:3 . . .`),
+      },
+      KICK('A1 . . . A1 . . .'),
+      SNARE('. . x . . . x .', 0.06),
+      HAT('x x x x x x x x', 0.032),
+    ],
+  },
+
+  // THE muzak. Smooth-jazz elevator: rootless Rhodes voicings, walking bass,
+  // a breathy vibrato flute, brushes. C major, 92bpm, swung eighths.
+  breezy: {
+    stepDur: 60 / 92 / 2,
+    loop: true,
+    swing: 0.16,
+    tracks: [
+      {
+        wave: 'triangle', gain: 0.16, atk: 0.012, rel: 0.5, filter: 'lowpass', cutoff: 1900, q: 0.7, detune: 6,
+        pat: pat(`
+          E3+G3+B3+D4:3 . . . . E3+G3+B3+D4:3 . .
+          G3+B3+C4+E4:3 . . . . G3+B3+C4+E4:3 . .
+          F3+A3+C4+E4:3 . . . . F3+A3+C4+E4:3 . .
+          F3+B3+E4:3 . . . . F3+B3+E4:3 . .
+          G3+B3+D4+E4:3 . . . . G3+B3+D4+E4:3 . .
+          G3+C#4+E4:3 . . . . G3+C#4+E4:3 . .
+          F3+A3+C4+E4:3 . . . . F3+A3+C4+E4:3 . .
+          F3+B3+E4:3 . . . . F3+B3+E4:3 . .`),
+      },
+      {
+        wave: 'triangle', gain: 0.46, atk: 0.008, rel: 0.12, filter: 'lowpass', cutoff: 650, q: 1,
+        pat: pat(`
+          C2:2 . E2:2 . G2:2 . A2:2 .
+          A1:2 . C2:2 . E2:2 . C#2:2 .
+          D2:2 . F2:2 . A2:2 . Ab2:2 .
+          G2:2 . F2:2 . D2:2 . B1:2 .
+          E2:2 . G2:2 . B2:2 . Bb2:2 .
+          A2:2 . G2:2 . E2:2 . C#2:2 .
+          D2:2 . F2:2 . A2:2 . C2:2 .
+          G1:2 . A1:2 . B1:2 . D2:2 .`),
+      },
+      {
+        wave: 'sine', gain: 0.2, atk: 0.02, rel: 0.3, vib: 14, vibRate: 5,
+        pat: pat(`
+          . . E5:2 . G5:2 . B5:2 .
+          A5:4 . . . G5 E5 C5 .
+          D5:3 . . E5 F5:3 . . A5
+          G5:5 . . . . . D5 F5
+          E5 G5 B5:3 . . D5 E5 G5
+          A5:2 . G5 . E5 . C#5 .
+          D5:2 . F5 A5 C6:4 . . .
+          B5:2 . A5 . G5:4 . . .`),
+      },
+      HAT('x . x x x . x x', 0.028),
+      SNARE('. . x . . . x .', 0.04, { cutoff: 2600, q: 4, rel: 0.03 }),
+    ],
+  },
+
+  // Upbeat stock-video "synergy". D major, 116bpm, I-V-vi-IV, plucky
+  // arpeggios, claps, a hopeful whistled hook.
+  corporate: {
+    stepDur: 60 / 116 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'pulse', gain: 0.1, atk: 0.002, rel: 0.07, filter: 'lowpass', cutoff: 3000, q: 0.8,
+        pat: pat(`
+          D4 A4 F#5 A4 D5 A4 F#5 A4
+          C#4 A4 E5 A4 C#5 A4 E5 A4
+          D4 B4 F#5 B4 D5 B4 F#5 B4
+          D4 B4 G5 B4 D5 B4 G5 B4`),
+      },
+      {
+        wave: 'triangle', gain: 0.4, atk: 0.004, hold: 0.08, rel: 0.06, filter: 'lowpass', cutoff: 750, q: 1,
+        pat: pat(`
+          D2 D2 D3 D2 D2 D2 D3 D2
+          A1 A1 A2 A1 A1 A1 A2 A1
+          B1 B1 B2 B1 B1 B1 B2 B1
+          G1 G1 G2 G1 G1 G1 G2 G1`),
+      },
+      {
+        wave: 'sawtooth', gain: 0.07, atk: 0.3, rel: 0.6, filter: 'lowpass', cutoff: 1100, q: 0.7, detune: 7,
+        pat: pat(`
+          D4+F#4+A4:8 . . . . . . .
+          C#4+E4+A4:8 . . . . . . .
+          D4+F#4+B4:8 . . . . . . .
+          D4+G4+B4:8 . . . . . . .`),
+      },
+      {
+        wave: 'sine', gain: 0.17, atk: 0.015, rel: 0.2, vib: 10,
+        pat: pat(`
+          F#5:2 . A5:2 . B5 A5 F#5:2 .
+          E5:6 . . . . . . .
+          F#5:2 . A5:2 . D6 C#6 B5:2 .
+          B5:4 . . . A5:4 . . .`),
+      },
+      KICK('A1 . . . A1 . . .'),
+      SNARE('. . x . . . x .', 0.07, { cutoff: 1300, q: 1.2, rel: 0.07 }),
+      HAT('. x . x . x . x', 0.04),
+    ],
+  },
+
+  // Sneaky pizzicato over a staccato chromatic walking bass. E minor, 100bpm,
+  // lightly swung, finger snaps on 2 and 4.
+  intrigue: {
+    stepDur: 60 / 100 / 2,
+    loop: true,
+    level: 1.45,
+    swing: 0.1,
+    tracks: [
+      {
+        wave: 'triangle', gain: 0.5, atk: 0.003, hold: 0.06, rel: 0.07, filter: 'lowpass', cutoff: 800, q: 1,
+        pat: pat(`
+          E2 . G2 . A2 . Bb2 .
+          B2 . A2 . G2 . E2 .
+          A1 . C2 . E2 . C2 .
+          B1 . D#2 . F#2 . D#2 .`),
+      },
+      {
+        wave: 'triangle', gain: 0.2, atk: 0.002, hold: 0.01, rel: 0.09, filter: 'lowpass', cutoff: 2600, q: 0.8,
+        pat: pat(`
+          . . E5 . . F#5 G5 .
+          . . F#5 . . E5 D#5 .
+          . . C5 . . B4 A4 .
+          B4 . . . D#5 . F#5 .`),
+      },
+      {
+        wave: 'pulse', gain: 0.09, atk: 0.002, hold: 0.02, rel: 0.05, filter: 'lowpass', cutoff: 1600, q: 0.8,
+        pat: pat(`
+          . E3+G3+B3 . . . E3+G3+B3 . .
+          . E3+G3+B3 . . . E3+G3+B3 . .
+          . A3+C4+E4 . . . A3+C4+E4 . .
+          . B3+D#4+F#4 . . . B3+D#4+A4 . .`),
+      },
+      {
+        wave: 'square', gain: 0.08, atk: 0.06, rel: 0.2, filter: 'lowpass', cutoff: 1300, q: 1, vib: 10,
+        pat: pat(`
+          . . . . . . . .
+          . . . . . . . .
+          E4:4 . . . F#4:2 . G4:2 .
+          F#4:8 . . . . . . .`),
+      },
+      HAT('. x . x . x . x', 0.03),
+      SNARE('. . x . . . x .', 0.045, { cutoff: 2800, q: 3, rel: 0.03 }),
+    ],
+  },
+
+  // Oompah polka: tuba, offbeat accordion-ish stabs, a bassoon doubled by a
+  // clarinet. F major, 2/4, 138bpm.
+  goofy: {
+    stepDur: 60 / 138 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'sawtooth', gain: 0.4, atk: 0.015, rel: 0.08, filter: 'lowpass', cutoff: 480, q: 2, glide: 0.92, glideTime: 0.05,
+        pat: pat(`
+          F2:2 . C2:2 .  F2:2 . C2:2 .
+          C2:2 . G2:2 .  C2:2 . G2:2 .
+          C2:2 . G2:2 .  C2:2 . G2:2 .
+          F2:2 . C2:2 .  F2:2 . C2:2 .`),
+      },
+      {
+        wave: 'square', gain: 0.1, atk: 0.003, hold: 0.04, rel: 0.05, filter: 'lowpass', cutoff: 1800, q: 0.8,
+        pat: pat(`
+          . A3+C4+F4 . A3+C4+F4  . A3+C4+F4 . A3+C4+F4
+          . Bb3+C4+E4 . Bb3+C4+E4  . Bb3+C4+E4 . Bb3+C4+E4
+          . Bb3+C4+E4 . Bb3+C4+E4  . Bb3+C4+E4 . Bb3+C4+E4
+          . A3+C4+F4 . A3+C4+F4  . A3+C4+F4 . A3+C4+F4`),
+      },
+      {
+        wave: 'pulse', gain: 0.16, atk: 0.01, rel: 0.07, filter: 'lowpass', cutoff: 1200, q: 2, transpose: -12, glide: 0.97, glideTime: 0.03,
+        pat: pat(`
+          C5 A4 F4 A4  C5:2 . D5 C5
+          Bb4 G4 E4 G4  Bb4:2 . C5 Bb4
+          E4 G4 Bb4 D5  C5:2 . Bb4 G4
+          F5 . C5 .  F4:2 . . .`),
+      },
+      {
+        wave: 'triangle', gain: 0.05, atk: 0.01, rel: 0.07, filter: 'lowpass', cutoff: 3000, q: 0.8,
+        pat: pat(`
+          C5 A4 F4 A4  C5:2 . D5 C5
+          Bb4 G4 E4 G4  Bb4:2 . C5 Bb4
+          E4 G4 Bb4 D5  C5:2 . Bb4 G4
+          F5 . C5 .  F4:2 . . .`),
+      },
+      SNARE('. x . x', 0.04, { cutoff: 2200, rel: 0.05 }),
+    ],
+  },
+
+  // Slow, lonely, minor. Piano-ish arpeggio, low drone, a vibrato line that
+  // keeps giving up. D minor, 64bpm, i-VI-iv-V.
+  sad: {
+    stepDur: 60 / 64 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'triangle', gain: 0.13, atk: 0.01, rel: 0.5, filter: 'lowpass', cutoff: 1800, q: 0.7,
+        pat: pat(`
+          D3 A3 D4 F4 A4 F4 D4 A3
+          Bb2 F3 Bb3 D4 F4 D4 Bb3 F3
+          G2 D3 G3 Bb3 D4 Bb3 G3 D3
+          A2 E3 A3 C#4 E4 C#4 A3 E3`),
+      },
+      {
+        wave: 'sine', gain: 0.28, atk: 0.2, rel: 0.8,
+        pat: pat(`
+          D2:8 . . . . . . .
+          Bb1:8 . . . . . . .
+          G1:8 . . . . . . .
+          A1:8 . . . . . . .`),
+      },
+      {
+        wave: 'sine', gain: 0.2, atk: 0.06, rel: 0.5, vib: 12, vibRate: 4.5,
+        pat: pat(`
+          . . . . A4:3 . . G4
+          F4:6 . . . . . E4 D4
+          D4:4 . . . Bb3 . C4 D4
+          C#4:8 . . . . . . .`),
+      },
+    ],
+  },
+
+  // Heroic anthem that LOOPS (unlike the one-shot `victory`). Bb major,
+  // 108bpm, brass rhythm, timpani, march snare.
+  triumph: {
+    stepDur: 60 / 108 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'sawtooth', gain: 0.13, atk: 0.02, rel: 0.15, filter: 'lowpass', cutoff: 1700, q: 0.7, detune: 6,
+        pat: pat(`
+          D4+F4+Bb4:3 . . D4+F4+Bb4 D4+F4+Bb4:4 . . .
+          C4+F4+A4:3 . . C4+F4+A4 C4+F4+A4:4 . . .
+          D4+G4+Bb4:3 . . D4+G4+Bb4 D4+G4+Bb4:4 . . .
+          Eb4+G4+Bb4:3 . . Eb4+G4+Bb4 Eb4+G4+Bb4:4 . . .
+          D4+F4+Bb4:3 . . D4+F4+Bb4 D4+F4+Bb4:4 . . .
+          C4+F4+A4:3 . . C4+F4+A4 C4+F4+A4:4 . . .
+          Eb4+G4+Bb4:3 . . Eb4+G4+Bb4 Eb4+G4+Bb4:4 . . .
+          C4+F4+A4:3 . . C4+F4+A4 C4+F4+A4:4 . . .`),
+      },
+      {
+        wave: 'triangle', gain: 0.46, atk: 0.006, rel: 0.15, filter: 'lowpass', cutoff: 700, q: 1,
+        pat: pat(`
+          Bb1:3 . . Bb1 Bb1:4 . . .
+          A1:3 . . A1 A1:4 . . .
+          G1:3 . . G1 G1:4 . . .
+          Eb2:3 . . Eb2 Eb2:4 . . .
+          Bb1:3 . . Bb1 Bb1:4 . . .
+          F2:3 . . F2 F2:4 . . .
+          Eb2:3 . . Eb2 Eb2:4 . . .
+          F2:3 . . F2 F2:4 . . .`),
+      },
+      {
+        wave: 'sawtooth', gain: 0.15, atk: 0.015, rel: 0.12, filter: 'lowpass', cutoff: 2800, q: 0.8, vib: 10,
+        pat: pat(`
+          F4:3 . . Bb4 D5:4 . . .
+          C5:3 . . A4 F4:4 . . .
+          G4:2 . Bb4:2 . D5:2 . G5:2 .
+          F5:6 . . . . . Eb5 D5
+          D5:3 . . C5 Bb4:2 . D5:2 .
+          C5:3 . . A4 F4:2 . A4:2 .
+          Bb4:2 . Eb5:2 . G5:2 . Bb5:2 .
+          A5:6 . . . . . F5 .`),
+      },
+      KICK('A1 . . . . . . .', 0.32),
+      SNARE('. . x . . . x x', 0.055),
+    ],
+  },
+
+  // Music-box flashback shimmer for lore / memory scenes. 3/4, 72bpm,
+  // descending maj7 / min7 chain.
+  dreamy: {
+    stepDur: 60 / 72 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'triangle', gain: 0.14, atk: 0.002, hold: 0.02, rel: 0.9, filter: 'lowpass', cutoff: 5000, q: 0.7,
+        pat: pat(`
+          F5 A5 C6 E6 C6 A5
+          E5 G5 B5 D6 B5 G5
+          D5 F5 A5 C6 A5 F5
+          C5 E5 G5 B5 G5 E5`),
+      },
+      {
+        wave: 'sine', gain: 0.04, atk: 0.002, hold: 0.01, rel: 1.0, transpose: 12,
+        pat: pat(`
+          F5 . . E6 . .
+          E5 . . D6 . .
+          D5 . . C6 . .
+          C5 . . B5 . .`),
+      },
+      {
+        wave: 'triangle', gain: 0.12, atk: 0.5, rel: 1.0, filter: 'lowpass', cutoff: 1200, q: 0.7, detune: 8,
+        pat: pat(`
+          F3+A3+E4:6 . . . . .
+          E3+G3+D4:6 . . . . .
+          D3+F3+C4:6 . . . . .
+          C3+E3+B3:6 . . . . .`),
+      },
+      {
+        wave: 'sine', gain: 0.22, atk: 0.1, rel: 0.8,
+        pat: pat(`
+          F2:6 . . . . .
+          E2:6 . . . . .
+          D2:6 . . . . .
+          C2:6 . . . . .`),
+      },
+      {
+        wave: 'sine', gain: 0.1, atk: 0.12, rel: 0.6, vib: 10, transpose: -12,
+        pat: pat(`
+          A5:6 . . . . .
+          G5:6 . . . . .
+          F5:3 . . A5:3 . .
+          E5:6 . . . . .`),
+      },
+    ],
+  },
+
+  // 80s synth-pop: octave-bouncing saw bass, detuned stabs, four-on-the-floor
+  // and a big gated snare. A minor, 118bpm, vi-IV-I-V.
+  party: {
+    stepDur: 60 / 118 / 2,
+    loop: true,
+    level: 1.3,
+    tracks: [
+      {
+        wave: 'sawtooth', gain: 0.3, atk: 0.003, hold: 0.08, rel: 0.05, filter: 'lowpass', cutoff: 900, q: 3,
+        pat: pat(`
+          A1 A2 A1 A2 A1 A2 A1 A2
+          F1 F2 F1 F2 F1 F2 F1 F2
+          C2 C3 C2 C3 C2 C3 C2 C3
+          G1 G2 G1 G2 G1 G2 G1 G2`),
+      },
+      {
+        wave: 'square', gain: 0.1, atk: 0.003, rel: 0.12, filter: 'lowpass', cutoff: 3200, q: 0.8, detune: 10,
+        pat: pat(`
+          A3+C4+E4 . . A3+C4+E4 . . A3+C4+E4 .
+          A3+C4+F4 . . A3+C4+F4 . . A3+C4+F4 .
+          G3+C4+E4 . . G3+C4+E4 . . G3+C4+E4 .
+          G3+B3+D4 . . G3+B3+D4 . . G3+B3+D4 .`),
+      },
+      {
+        wave: 'sawtooth', gain: 0.13, atk: 0.01, rel: 0.12, filter: 'lowpass', cutoff: 3600, q: 0.8, detune: 9, vib: 8,
+        pat: pat(`
+          A5:2 . G5 . E5:2 . D5 C5
+          C5:3 . . A4 C5:2 . F5:2 .
+          E5:2 . G5 . C6:2 . B5 G5
+          D5:4 . . . B4 . D5 G5`),
+      },
+      KICK('A1 . A1 . A1 . A1 .', 0.32),
+      SNARE('. . x . . . x .', 0.1, { cutoff: 1500, q: 0.5, hold: 0.1, rel: 0.02, hard: true }),
+      HAT('. x . x . x . x', 0.03),
+    ],
+  },
+
+  // Original celebratory birthday-party loop (deliberately NOT the "Happy
+  // Birthday to You" tune). G major, 4/4, 132bpm, chiptune lead + glock.
+  birthday: {
+    stepDur: 60 / 132 / 2,
+    loop: true,
+    tracks: [
+      {
+        wave: 'square', gain: 0.14, atk: 0.004, rel: 0.1, filter: 'lowpass', cutoff: 4200, q: 0.8,
+        pat: pat(`
+          D5 G5 B5:2 . G5 A5 B5 .
+          C6:3 . . B5 A5 G5 E5 G5
+          F#5 . A5 . D6:2 . C6 A5
+          B5:2 . A5 . G5:4 . . .
+          E5 G5 B5:2 . E6 D6 B5 .
+          C6:2 . E6:2 . C6 B5 A5 G5
+          A5:2 . F#5 A5 D6:2 . C6 A5
+          G5:2 . D5 . G5 B5 D6 G6`),
+      },
+      {
+        wave: 'sine', gain: 0.05, atk: 0.002, rel: 0.4, transpose: 12,
+        pat: pat(`
+          D5 G5 B5:2 . G5 A5 B5 .
+          C6:3 . . B5 A5 G5 E5 G5
+          F#5 . A5 . D6:2 . C6 A5
+          B5:2 . A5 . G5:4 . . .
+          E5 G5 B5:2 . E6 D6 B5 .
+          C6:2 . E6:2 . C6 B5 A5 G5
+          A5:2 . F#5 A5 D6:2 . C6 A5
+          G5:2 . D5 . G5 B5 D6 G6`),
+      },
+      {
+        wave: 'triangle', gain: 0.44, atk: 0.005, rel: 0.08, filter: 'lowpass', cutoff: 800, q: 1,
+        pat: pat(`
+          G1 . D2 . G2 . D2 .
+          C2 . G2 . C3 . G2 .
+          D2 . A2 . D3 . A2 .
+          G1 . D2 . G2 . D2 .
+          E2 . B2 . E3 . B2 .
+          C2 . G2 . C3 . G2 .
+          D2 . A2 . D3 . A2 .
+          G1 . D2 . G2 . D2 .`),
+      },
+      {
+        wave: 'pulse', gain: 0.1, atk: 0.003, hold: 0.05, rel: 0.06, filter: 'lowpass', cutoff: 2400, q: 0.8,
+        pat: pat(`
+          . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4
+          . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4
+          . A3+D4+F#4 . A3+D4+F#4 . A3+D4+F#4 . A3+D4+F#4
+          . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4
+          . B3+E4+G4 . B3+E4+G4 . B3+E4+G4 . B3+E4+G4
+          . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4
+          . A3+D4+F#4 . A3+D4+F#4 . A3+D4+F#4 . A3+D4+F#4
+          . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4`),
+      },
+      KICK('A1 . . . A1 . . .'),
+      SNARE('. . x . . . x .', 0.07, { cutoff: 1300, q: 1.2, rel: 0.07 }),
+      HAT('x x x x x x x x', 0.03),
+    ],
+  },
 };
+
+/**
+ * Old / alternate names that resolve to a real cue. `tension` is what the
+ * episode runtime's allow-list has always said; the cue is `tense`.
+ * @type {Object<string, string>}
+ */
+const MUSIC_ALIASES = { tension: 'tense' };
+
+/**
+ * One-line mood per cue, for docs, authoring prompts and tooling.
+ * @type {Readonly<Object<string, string>>}
+ */
+export const MUSIC_MOODS = Object.freeze({
+  lobby: 'Bored minor-key elevator loop. Default office ambience.',
+  happy: 'Bouncy major-key office pop. Good news, a nice morning, montage.',
+  breezy: 'Smooth-jazz elevator muzak. Waiting, small talk, fake calm.',
+  corporate: 'Upbeat stock-video "synergy". Presentations, onboarding, brand speak.',
+  intrigue: 'Sneaky pizzicato + walking bass. Snooping, schemes, a suspicious memo.',
+  tense: 'Pulsing low ostinato, anxious arpeggio. Deadlines, confrontations.',
+  chase: 'Fast comedic gallop. Running, panic, everything on fire.',
+  goofy: 'Oompah polka with tuba and bassoon. Slapstick, dumb plans, the dog.',
+  sad: 'Slow, lonely minor. Rejection, layoffs, a sad desk lunch.',
+  triumph: 'Heroic looping anthem. Rallying the team, the big comeback.',
+  victory: 'One-shot JRPG victory sting. Stops itself.',
+  dreamy: 'Music-box shimmer. Flashbacks, lore, memories, daydreams.',
+  party: '80s synth-pop with a gated snare. Parties, neon, the 80s client.',
+  birthday: 'Original celebratory party loop. Birthdays, cake, office celebrations.',
+});
+
+/**
+ * Every playable music cue id (aliases excluded), frozen.
+ * @type {ReadonlyArray<string>}
+ */
+export const MUSIC_IDS = Object.freeze(Object.keys(MUSIC));
 
 const LOOKAHEAD = 0.18;
 const TICK_MS = 25;
 const XFADE = 0.35;
 
-/** @type {{id:string, def:MusicDef, gain:GainNode, step:number, next:number, timer:number, steps:number, done:boolean}|null} */
+/** @type {{id:string, def:MusicDef, gain:GainNode, level:number, step:number, next:number, timer:number, steps:number, done:boolean}|null} */
 let music = null;
 /** @type {string|null} */
 let musicId = null;
@@ -960,21 +1911,29 @@ function playNote(track, ev, t, stepDur, dest) {
   const dur = ev.len * stepDur;
   const atk = track.atk == null ? 0.01 : track.atk;
   const rel = track.rel == null ? 0.12 : track.rel;
-  const hold = Math.max(0, dur - atk - Math.min(rel, dur * 0.4));
+  const hold = track.hold != null ? track.hold : Math.max(0, dur - atk - Math.min(rel, dur * 0.4));
 
   if (ev.noise) {
     const g = ctx.createGain();
     const s = noiseSrc(t, atk + hold + rel + 0.05);
     const f = filt(track.filter || 'highpass', track.cutoff || 6000, track.q);
     s.connect(f); f.connect(g); g.connect(dest);
-    env(g.gain, t, track.gain, atk, 0, rel);
+    env(g.gain, t, track.gain, atk, track.hold || 0, rel, track.hard);
     return;
   }
 
-  for (const f0 of ev.freqs) {
+  const tr = track.transpose ? Math.pow(2, track.transpose / 12) : 1;
+  for (const fb of ev.freqs) {
+    const f0 = fb * tr;
     const o = ctx.createOscillator();
-    o.type = track.wave || 'triangle';
-    o.frequency.setValueAtTime(f0, t);
+    if (track.wave === 'pulse') o.setPeriodicWave(pulseWave);
+    else o.type = track.wave || 'triangle';
+    if (track.glide) {
+      o.frequency.setValueAtTime(f0 * track.glide, t);
+      o.frequency.exponentialRampToValueAtTime(f0, t + (track.glideTime || 0.05));
+    } else {
+      o.frequency.setValueAtTime(f0, t);
+    }
     if (track.detune) o.detune.setValueAtTime(track.detune, t);
     const g = ctx.createGain();
     let node = o;
@@ -985,9 +1944,19 @@ function playNote(track, ev, t, stepDur, dest) {
     }
     node.connect(g);
     g.connect(dest);
-    const end = env(g.gain, t, track.gain / Math.max(1, ev.freqs.length * 0.7), atk, hold, rel);
+    const end = env(g.gain, t, track.gain / Math.max(1, ev.freqs.length * 0.7), atk, hold, rel, track.hard);
     o.start(t);
     o.stop(end + 0.03);
+    if (track.vib) {
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = track.vibRate || 5.5;
+      const lg = ctx.createGain();
+      lg.gain.setValueAtTime(0, t);
+      lg.gain.linearRampToValueAtTime(track.vib, t + Math.min(0.3, dur * 0.6));
+      lfo.connect(lg); lg.connect(o.detune);
+      lfo.start(t);
+      lfo.stop(end + 0.03);
+    }
   }
 }
 
@@ -1002,9 +1971,10 @@ function tick(st) {
   const horizon = ctx.currentTime + LOOKAHEAD;
   while (st.next < horizon) {
     const s = st.step % st.steps;
+    const at = st.next + (s % 2 && st.def.swing ? st.def.swing * st.def.stepDur : 0);
     for (const tr of st.def.tracks) {
-      const ev = parseTok(tr.pat[s]);
-      if (ev) playNote(tr, ev, st.next, st.def.stepDur, st.gain);
+      const ev = parseTok(tr.pat[s % tr.pat.length]);
+      if (ev) playNote(tr, ev, at, st.def.stepDur, st.gain);
     }
     st.next += st.def.stepDur;
     st.step++;
@@ -1046,18 +2016,33 @@ function killMusic(st, fade) {
 }
 
 /**
- * Starts a looping music bed, crossfading out whatever was already playing.
- * Calling it twice with the same id is a no-op, so it is safe to call from a
- * per-frame update. Music sits at ~0.08 absolute so voices stay on top.
- * @param {'lobby'|'tense'|'chase'|'victory'|null} id  null stops the music
+ * Starts a music bed, crossfading out whatever was already playing.
+ * Calling it again with the same id is a no-op (apart from applying a new
+ * `opts.gain`), so it is safe to call from a per-frame update. Music sits at
+ * ~0.08 absolute so voices stay on top. Unknown ids are ignored.
+ * See {@link MUSIC_IDS} / {@link MUSIC_MOODS}.
+ * @param {string|null} id a {@link MUSIC_IDS} entry (or alias `tension`); null stops the music
+ * @param {Object} [opts]
+ * @param {number} [opts.gain=1] level multiplier for this cue (e.g. 0.5 under a long speech)
  * @returns {void}
  */
-export function playMusic(id) {
+export function playMusic(id, opts = {}) {
   if (id == null) { stopMusic(); return; }
   if (!live()) return;
-  const def = MUSIC[id];
+  const key = MUSIC_ALIASES[id] || id;
+  const def = MUSIC[key];
   if (!def) return;
-  if (musicId === id && music && !music.done) return;
+  const level = Math.max(0, (def.level == null ? 1 : def.level) * (opts.gain == null ? 1 : opts.gain));
+  if (musicId === key && music && !music.done) {
+    if (opts.gain != null && music.level !== level) {
+      const t = ctx.currentTime;
+      music.level = level;
+      music.gain.gain.cancelScheduledValues(t);
+      music.gain.gain.setValueAtTime(music.gain.gain.value, t);
+      music.gain.gain.linearRampToValueAtTime(Math.max(level, 0.0001), t + 0.25);
+    }
+    return;
+  }
 
   killMusic(music, XFADE);
   music = null;
@@ -1071,13 +2056,21 @@ export function playMusic(id) {
   g.connect(musicBus);
   const t0 = ctx.currentTime + 0.05;
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(1, t0 + (def.loop ? XFADE : 0.02));
+  g.gain.linearRampToValueAtTime(Math.max(level, 0.0001), t0 + (def.loop ? XFADE : 0.02));
 
-  const st = { id, def, gain: g, step: 0, next: t0, timer: 0, steps, done: false };
+  const st = { id: key, def, gain: g, level, step: 0, next: t0, timer: 0, steps, done: false };
   music = st;
-  musicId = id;
+  musicId = key;
   st.timer = setInterval(() => tick(st), TICK_MS);
   tick(st);
+}
+
+/**
+ * The id of the cue currently playing (aliases resolved), or null.
+ * @returns {string|null}
+ */
+export function currentMusic() {
+  return music && !music.done ? musicId : null;
 }
 
 /**

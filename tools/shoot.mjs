@@ -6,7 +6,7 @@
  * pose to settle, and writes a crisp 16:9 PNG to `/assets/thumbs/epN.png`.
  *
  * ```
- * node tools/shoot.mjs             # ep1, ep2, ep3
+ * node tools/shoot.mjs             # every episode
  * node tools/shoot.mjs ep2         # just one
  * node tools/shoot.mjs brand       # /assets/og.png + /assets/logo.png
  * node tools/shoot.mjs cast        # /assets/cast/<id>.png, six real headshots

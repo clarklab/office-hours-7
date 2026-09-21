@@ -118,7 +118,7 @@ const SHOTS = {
  */
 function hudRows() {
   return [
-    { name: 'MULCH', hp: '11/11 DAYS', mp: '$0', limit: 0.06, time: 0.35 },
+    { name: 'MUNCH', hp: '11/11 DAYS', mp: '$0', limit: 0.06, time: 0.35 },
     { name: 'PAYROLL', hp: 'FRIDAY', limit: 0.52, time: 0.08 },
     { name: 'MORALE', hp: '6/10', mp: '2', limit: 0.28, time: 0.60 },
   ];
@@ -290,7 +290,7 @@ async function run(ctx) {
   /** Pops a burn figure over the company and ticks the runway down. */
   const burn = (text, days, color) => {
     d.damageOn(COMPANY, text, color ? { color } : undefined);
-    d.updateHud({ MULCH: { hp: `${days}/11 DAYS` } });
+    d.updateHud({ MUNCH: { hp: `${days}/11 DAYS` } });
     d.sfx(color ? 'chime' : 'stamp', { gain: 0.7 });
   };
 

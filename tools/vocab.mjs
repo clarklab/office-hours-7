@@ -30,6 +30,8 @@ const PROBE = async () => {
   const office = await import('/js/sets/office.js');
   const chars = await import('/js/characters/index.js');
   const director = await import('/js/core/director.js');
+  const slides = await import('/js/sets/slides.js');
+  const audio = await import('/js/core/audio.js');
 
   const built = office.createOffice();
   await chars.loadCast(chars.CAST_IDS);
@@ -76,6 +78,11 @@ const PROBE = async () => {
     profiles,
     anims,
     verbs,
+    slides: Array.from(slides.SLIDE_IDS || []),
+    slideInfo: Object.fromEntries(Object.entries(slides.SLIDE_INFO || {}).map(([k, v]) => [k, v && v.desc ? v.desc : String(v)])),
+    sfx: Array.from(audio.SFX_IDS || []),
+    music: Object.assign({}, audio.MUSIC_MOODS || {}),
+    guests: Array.from(chars.GUEST_IDS || []),
     triangles: typeof built.triangles === 'function' ? built.triangles() : undefined,
   };
 };
@@ -176,6 +183,18 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`  ${id.padEnd(9)}${(p.fullName || p.name || '').padEnd(24)}${(p.role || '').padEnd(22)}${tri}`);
     console.log(`    anims: ${(data.anims[id] || []).join(', ')}`);
   }
+  console.log('');
+
+  console.log(`MUSIC  (${Object.keys(data.music).length})  — d.music('id'), d.music(null) to stop`);
+  for (const [id, mood] of Object.entries(data.music)) console.log(`  ${id.padEnd(11)}${mood}`);
+  console.log('');
+
+  console.log(`SFX  (${data.sfx.length})  — d.sfx('id'), or d.say(a, text, { sfx: 'id', sfxAt: 'end' })`);
+  console.log(list(data.sfx, 6, 15));
+  console.log('');
+
+  console.log(`SLIDES  (${data.slides.length})  — d.slide('projector'|'meetingBoard'|'whiteboard', 'id', opts)`);
+  for (const id of data.slides) console.log(`  ${id.padEnd(14)}${data.slideInfo[id] || ''}`);
   console.log('');
 
   console.log(`DIRECTOR VERBS  (${data.verbs.length})  — everything an episode may call on \`d\``);

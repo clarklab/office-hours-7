@@ -14,7 +14,9 @@
  */
 
 import { getStore } from '@netlify/blobs';
-import { validateSpec, estimateRuntime, STEP_TYPES } from '../../js/episodes/runtime.js';
+import {
+  validateSpec, estimateRuntime, STEP_TYPES, SFX, MUSIC, MUSIC_HELP, EXPRESSIONS, SURFACES,
+} from '../../js/episodes/runtime.js';
 import {
   EPISODE_STORE, JOB_STORE, checkRate, clientIp, setJob, json,
 } from './_shared.mjs';
@@ -40,7 +42,7 @@ function systemPrompt(v) {
     .map((id) => `  ${id} — ${v.profiles[id].fullName} (${v.profiles[id].role}); animations: ${v.anims[id].join(', ')}`)
     .join('\n');
 
-  return `You write episodes of OFFICE HOURS VII, a PS1-era 3D workplace comedy set at MULCH, Inc. — a startup with eleven days of money left. Dry, deadpan, affectionate. Nobody is punching down; everybody is doing their best and it is not working.
+  return `You write episodes of OFFICE HOURS VII, a PS1-era 3D workplace comedy set at MUNCH, Inc. — a startup with eleven days of money left. Dry, deadpan, affectionate. Nobody is punching down; everybody is doing their best and it is not working.
 
 You output ONE JSON object and nothing else. No markdown fence, no commentary.
 
@@ -60,8 +62,9 @@ Run the premise through these people and the episode writes itself. Ask: who not
          more than he is saying. Answers a direct question with a different question.
   MARGE  Finance. The only one holding real numbers, in one red ledger. Ramrod
          straight. Says the actual cost out loud, flatly, and ends the argument.
-  TUESDAY An unauthorised dog. Does not speak. Present, unbothered, and usually the
-         closest thing to a resolution anyone gets.
+  TUESDAY The office dog: an old, three-legged dapple dachshund. Does not speak.
+         Spunky, unbothered, occasionally bites someone who deserves it, and
+         usually the closest thing to a resolution anyone gets.
 
 SHAPE THAT WORKS:
   1. Cold open — the office, before anyone knows. One or two lines.
@@ -90,8 +93,12 @@ ${v.marks.join(', ')}
 CAMERA SET-UPS for cut:
 ${v.shots.join(', ')}
 
-SOUND: sfx = bark, fanfare, chime, thud, beep, error. music = lobby, chase, tension, victory, or null to stop.
-EMOTES: sweat, note, anger, idea, love, shock.
+SOUND EFFECTS for sfx (and a say line's "sfx"): ${SFX.join(', ')}.
+MUSIC BEDS for music (or null to stop) — pick by mood:
+${MUSIC.map((m) => `  ${m} — ${MUSIC_HELP[m] || ''}`).join('\n')}
+EMOTES: sweat, anger, question, exclaim, heart, money, zzz.
+EXPRESSIONS for expression: ${EXPRESSIONS.join(', ')} (null returns to automatic).
+SLIDES for slide (surfaces: ${SURFACES.join(', ')}): ${(v.slides || []).join(', ')}.
 
 OUTPUT SHAPE:
 {
@@ -113,18 +120,24 @@ STEP TYPES — ${STEP_TYPES.join(', ')}:
   {"type":"say","actor":null,"text":"Narration, no speaker."}
   {"type":"nameCard","actor":"marge"}
   {"type":"wait","ms":600} {"type":"beat","ms":400}
-  {"type":"sfx","name":"chime"} {"type":"music","name":"lobby"}
+  {"type":"sfx","name":"boing"} {"type":"music","name":"intrigue"}
+  {"type":"say","actor":"dez","text":"Closed it.","sfx":"rimshot","sfxAt":"end"}
+  {"type":"slide","surface":"projector","id":"barChart","title":"MEETINGS / WEEK"}
+  {"type":"expression","actor":"marge","name":"squint"}
   {"type":"toast","text":"SHORT ALL-CAPS"}
   {"type":"shake"} {"type":"flash"} {"type":"fadeOut"} {"type":"fadeIn"}
 
 CRAFT:
 - Open with a title step, then a cut, then place everyone who appears before they speak.
 - Cut to a new set-up every 3-6 lines. A scene on one camera goes dead.
+- Set a music bed per scene that matches its mood, and change it when the mood turns.
+  A sound effect on a punchline (rimshot, boing, sadTrombone) lands it; use a few, not many.
+- A meeting wants a slide on the projector before anyone points at it.
 - Spoken lines are at most 84 characters. Short lines land harder than long ones.
 - Aim for 95-150 seconds. Roughly: each line costs 1.3s plus a second per 14 characters.
 - Use three to five characters. All six in two minutes is a crowd, not a cast.
 - Nobody says the company is doomed out loud. They talk about parking, or a chair.
-- If the premise is rude, cruel or about a real person, write the MULCH version of it
+- If the premise is rude, cruel or about a real person, write the MUNCH version of it
   instead: keep the shape, drop the target, aim it at the office. Never refuse — a
   viewer typed one line and is waiting for something.`;
 }

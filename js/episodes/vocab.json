@@ -91,6 +91,7 @@
   "anims": {
     "brad": [
       "cheer",
+      "hop",
       "idle",
       "panic",
       "point",
@@ -103,6 +104,7 @@
     ],
     "dez": [
       "cheer",
+      "hop",
       "idle",
       "panic",
       "point",
@@ -115,6 +117,7 @@
     ],
     "kiki": [
       "cheer",
+      "hop",
       "idle",
       "panic",
       "point",
@@ -127,6 +130,7 @@
     ],
     "roop": [
       "cheer",
+      "hop",
       "idle",
       "panic",
       "point",
@@ -139,6 +143,7 @@
     ],
     "marge": [
       "cheer",
+      "hop",
       "idle",
       "panic",
       "point",
@@ -151,6 +156,7 @@
     ],
     "tuesday": [
       "bark",
+      "bite",
       "cheer",
       "idle",
       "panic",
@@ -174,7 +180,7 @@
       "role": "FOUNDER / CEO",
       "color": "#39c7b5",
       "prop": "mug",
-      "triangles": 386
+      "triangles": 690
     },
     "dez": {
       "name": "DEZ",
@@ -182,7 +188,7 @@
       "role": "HEAD OF SALES",
       "color": "#e0457b",
       "prop": "phone",
-      "triangles": 426
+      "triangles": 820
     },
     "kiki": {
       "name": "KIKI",
@@ -190,7 +196,7 @@
       "role": "FRONT OF HOUSE",
       "color": "#7ee04a",
       "prop": "handset",
-      "triangles": 590
+      "triangles": 848
     },
     "roop": {
       "name": "ROOP",
@@ -198,7 +204,7 @@
       "role": "IT",
       "color": "#8f7ae0",
       "prop": "crt",
-      "triangles": 482
+      "triangles": 870
     },
     "marge": {
       "name": "MARGE",
@@ -206,7 +212,7 @@
       "role": "FINANCE",
       "color": "#e8a33d",
       "prop": "ledger",
-      "triangles": 550
+      "triangles": 852
     },
     "tuesday": {
       "name": "TUESDAY",
@@ -214,8 +220,26 @@
       "role": "UNAUTHORISED DOG",
       "color": "#c98a4b",
       "prop": "ball",
-      "triangles": 362
+      "triangles": 582
     }
   },
+  "slides": [
+    "title",
+    "agenda",
+    "lineChart",
+    "barChart",
+    "pieChart",
+    "spreadsheet",
+    "meme",
+    "billboard",
+    "social",
+    "orgChart",
+    "roadmap",
+    "kpi",
+    "venn",
+    "quote",
+    "announcement",
+    "thanks"
+  ],
   "generated": "2026-09-21"
 }

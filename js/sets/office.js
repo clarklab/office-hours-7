@@ -1,7 +1,7 @@
 /**
  * OFFICE HOURS — the set.
  *
- * One continuous floor plan for MULCH, Inc., eleven days from running out of
+ * One continuous floor plan for MUNCH, Inc., eleven days from running out of
  * money. All four rooms are built at once so the camera can cut between them
  * and actors can walk from reception to the meeting room without a load screen.
  *
@@ -26,6 +26,7 @@
 import * as THREE from 'three';
 import { ps1Material } from '/js/core/ps1.js';
 import * as P from '/js/sets/props.js';
+import { slideTexture } from '/js/sets/slides.js';
 
 /* ------------------------------------------------------------- dimensions */
 
@@ -108,7 +109,7 @@ function put(parent, obj, x, y, z, ry = 0) {
  */
 
 /**
- * Builds the MULCH, Inc. office.
+ * Builds the MUNCH, Inc. office.
  *
  * Nothing is parented to a scene — add `set.group` yourself, and drive
  * `set.update` from `stage.onUpdate`.
@@ -219,10 +220,10 @@ export function createOffice() {
   props.deskPhone = recPhone;
   put(group, P.bankersBoxStack({ count: 1 }), -11.35, 0.74, -3.05, 0.4);
 
-  const logo = P.mulchLogoWall({ w: 2.6, h: 1.3, y: 1.78 });
+  const logo = P.munchLogoWall({ w: 2.6, h: 1.3, y: 1.78 });
   put(group, logo, BOUNDS.minX + 0.03, 0, -2.4, Math.PI / 2);
   props.logoWall = logo;
-  props.mulchLogo = logo;
+  props.munchLogo = logo;
 
   const clock = P.wallClock({ r: 0.19 });
   put(group, clock, BOUNDS.minX + 0.04, 2.1, -5.2, Math.PI / 2);
@@ -414,6 +415,8 @@ export function createOffice() {
   const screen = P.projectorScreen({ w: 1.7, h: 1.45, top: 2.52 });
   put(group, screen, 11.2, 0, DIV_C + WT / 2 + 0.03);
   props.projectorScreen = screen;
+  // the projector is never just blank: it idles on the deck's title slide
+  screen.userData.setScreen(slideTexture('title'));
   swayers.push({ o: screen.userData.sheet, a: 0.006, f: 0.42, p: 0.7 });
 
   put(group, P.motivationalPoster({ word: 'RUNWAY', caption: 'every road ends somewhere' }),

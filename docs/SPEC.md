@@ -418,7 +418,7 @@ export function createOffice()
 ```
 - One continuous floor plan, all four rooms built at once (camera cuts between them —
   cheaper and lets characters walk room to room):
-  - **RECEPTION** (around x = -9): desk with a phone, MULCH logo wall, a very sad plant,
+  - **RECEPTION** (around x = -9): desk with a phone, MUNCH logo wall, a very sad plant,
     two waiting chairs, a wall clock.
   - **BULLPEN** (x = -4..4, the middle): 4-5 desks with beige CRT monitors, keyboards,
     rolling chairs, waist-high cubicle partitions, a whiteboard on wheels, a water cooler,
@@ -500,9 +500,9 @@ export async function loadEpisode(id)   // dynamic import()
   `/vendor/*` and a 200-rewrite-free plain static config.
 
 ## 5. The show
-**Title:** `OFFICE HOURS VII` — sub-branded `a MULCH production`.
+**Title:** `OFFICE HOURS VII` — sub-branded `a MUNCH production`.
 (Plain-text name: "Office Hours 7". The LOGO lockup uses the roman numeral **VII**, per §11.)
-**Company:** **MULCH, Inc.** — "The Everything Layer." A Series A startup whose product is
+**Company:** **MUNCH, Inc.** — "The Everything Layer." A Series A startup whose product is
 never explained. Eleven days of runway. Office is one floor of a business park.
 **Tone:** deadpan, absurd, affectionate. Workplace comedy via JRPG grammar. Never mean.
 No profanity, no punching down, no real-company names.
@@ -516,7 +516,7 @@ No profanity, no punching down, no real-company names.
 | `kiki` | KIKI PARK | FRONT OF HOUSE | `#7ee04a` | shortest; **big round hair**; headset with mic boom; coiled phone cord |
 | `roop` | RUPERT "ROOP" NG | IT | `#8f7ae0` | **hood up**, hunched, oversized hoodie, cargo shorts, socks+sandals |
 | `marge` | MARGUERITE OKONKWO | FINANCE | `#e8a33d` | ramrod straight; **tight bun**; enormous round glasses; red ledger |
-| `tuesday` | TUESDAY | UNAUTHORISED DOG | `#c98a4b` | scruffy tan dog, one floppy + one up ear, metronome tail |
+| `tuesday` | TUESDAY | UNAUTHORISED DOG | `#c98a4b` | old, three-legged dapple dachshund; one ear flipped inside-out; helicopter tail |
 
 Joke stats (use these or equally good ones):
 - BRAD — `LV 9`, `HP 40/40`, `VIBES 999`
@@ -697,7 +697,7 @@ logo is the single loudest signal of that. This supersedes every earlier mention
 
 - Plain-text / prose name: **Office Hours 7**
 - Logo lockup / title cards / hero: **OFFICE HOURS VII** (roman numeral)
-- Sub-brand: **a MULCH production**
+- Sub-brand: **a MUNCH production**
 
 > **Writing an episode?** Read [EPISODE-AUTHORING.md](./EPISODE-AUTHORING.md) first, and
 > run `npm run vocab` to print the live list of marks, shots, characters, animations and
@@ -731,7 +731,7 @@ everything else here is procedural: there are no font files in this project.
  * @param {Object} [o]
  * @param {boolean} [o.mark=true]      draw the meteor illustration above the type
  * @param {boolean} [o.wordmark=true]  draw OFFICE HOURS + VII
- * @param {string}  [o.subtitle]       small caps line under the lockup, e.g. 'a MULCH production'
+ * @param {string}  [o.subtitle]       small caps line under the lockup, e.g. 'a MUNCH production'
  * @param {number}  [o.glow=0.35]      cool outer glow strength, 0..1
  * @param {number}  [o.seed=7]         linework jitter seed
  */
@@ -785,5 +785,5 @@ Anatomy copied from the FF7 logo, with the content swapped:
 - `/css/brand.css` holds the palette tokens. Use them; do not invent new greys.
 - The logo is always on black or near-black. Never on a light background, never recoloured.
 - The serif of the logo is for the logo only. Body and UI type stays monospace/pixel.
-- `MULCH, Inc.` keeps its own flat corporate mark in-world (on the office wall) — that is set
+- `MUNCH, Inc.` keeps its own flat corporate mark in-world (on the office wall) — that is set
   dressing and is deliberately ugly. It is not related to the show logo.

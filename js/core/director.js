@@ -33,6 +33,7 @@
 import * as THREE from 'three';
 import { VIRTUAL_W, VIRTUAL_H } from './ps1.js';
 import { playSfx, playMusic, stopMusic } from './audio.js';
+import { slideTexture } from '/js/sets/slides.js';
 
 /** Design-space width the dialogue layer is laid out in. */
 const DESIGN_W = VIRTUAL_W;
@@ -158,6 +159,7 @@ function safe(fn) {
  * @property {Object<string, Shot>} [shots] named shots, so `d.cut('bullpenWide')` works
  * @property {Object<string, THREE.Vector3>} [marks] named floor positions, so `d.walk(a, 'fridge')` works
  * @property {HTMLElement} [host] element the fade overlay is mounted into; defaults to the dialogue host
+ * @property {Object<string, THREE.Object3D>} [props] the set's named props, so `d.slide('projector', ...)` works
  */
 
 /**
@@ -1098,6 +1100,30 @@ export function createDirector(stage, ui, options = {}) {
   }
 
   /**
+   * Holds a facial expression — 'neutral' | 'happy' | 'shocked' | 'squint' —
+   * over whatever the actor is doing. `null` hands the face back to the
+   * animation. The mouth still flaps while they talk.
+   * @param {import('../characters/rig.js').Actor} actor
+   * @param {string|null} expr
+   * @returns {void}
+   */
+  function expression(actor, expr) {
+    const a = asActor(actor);
+    if (a && typeof a.setExpression === 'function') safe(() => a.setExpression(expr || null));
+  }
+
+  /**
+   * Holds the mouth open (`true`) or shut (`false`); `null` is automatic.
+   * @param {import('../characters/rig.js').Actor} actor
+   * @param {boolean|null} open
+   * @returns {void}
+   */
+  function mouth(actor, open) {
+    const a = asActor(actor);
+    if (a && typeof a.setMouth === 'function') safe(() => a.setMouth(open == null ? null : !!open));
+  }
+
+  /**
    * Seats or unseats an actor.
    * @param {import('../characters/rig.js').Actor} actor
    * @param {boolean} [on=true]
@@ -1138,7 +1164,7 @@ export function createDirector(stage, ui, options = {}) {
    *
    * @param {import('../characters/rig.js').Actor|null} actor
    * @param {string} text
-   * @param {Object} [o] any SayOpts — `cps`, `hold`, `keep`, `anchor`, `at`, `maxWidth`, `pos`, `auto`
+   * @param {Object} [o] any SayOpts — `cps`, `hold`, `keep`, `anchor`, `at`, `maxWidth`, `pos`, `auto` — plus `sfx` (a sound id to fire with the line), `sfxAt: 'end'` and `sfxOpts`
    * @returns {Promise<void>}
    */
   async function say(actor, text, o = {}) {
@@ -1163,6 +1189,10 @@ export function createDirector(stage, ui, options = {}) {
       if (a) opts.at = boxAt(a, size);
       else opts.anchor = 'bm';
     }
+    // A dialog-triggered sound: `{ sfx: 'boing' }` fires as the box opens,
+    // `{ sfx: 'rimshot', sfxAt: 'end' }` once the line has been read.
+    const cue = typeof src.sfx === 'string' ? src.sfx : null;
+    if (cue && src.sfxAt !== 'end') sfx(cue, src.sfxOpts || {});
     let prevAnim = 'idle';
     if (a) {
       if (typeof a.current === 'function') prevAnim = safe(() => a.current()) || 'idle';
@@ -1186,6 +1216,7 @@ export function createDirector(stage, ui, options = {}) {
       const p = callUI('say', opts);
       if (budget > 0) await guardWith(p, budget);
       else await guard(p);
+      if (cue && src.sfxAt === 'end' && !isCancelled) sfx(cue, src.sfxOpts || {});
     } finally {
       if (a) {
         play(a, prevAnim && prevAnim !== 'talk' ? prevAnim : 'idle');
@@ -1505,9 +1536,41 @@ export function createDirector(stage, ui, options = {}) {
    * @param {'lobby'|'tense'|'chase'|'victory'|null} id
    * @returns {void}
    */
-  function music(id) {
+  function music(id, o) {
     if (id == null) safe(() => stopMusic());
-    else safe(() => playMusic(id));
+    else safe(() => playMusic(id, o));
+  }
+
+  /* ---- slides ---- */
+
+  /** Surface name -> the prop key(s) that carry it, in preference order. */
+  const SURFACES = {
+    projector: ['projectorScreen'],
+    meetingBoard: ['whiteboardMeeting'],
+    whiteboard: ['whiteboard'],
+  };
+
+  /**
+   * Puts a slide on a board or the projector: `d.slide('projector', 'barChart')`.
+   * `id` null clears it (the projector goes dark, a whiteboard gets its scrawl
+   * back is NOT attempted — pass a texture or another slide instead).
+   * @param {'projector'|'meetingBoard'|'whiteboard'} surface
+   * @param {string|null} id a slide id from /js/sets/slides.js
+   * @param {Object} [o] the slide's options (title, items, text, values…)
+   * @returns {boolean} whether a surface took it
+   */
+  function slide(surface, id, o = {}) {
+    const keys = SURFACES[surface] || [surface];
+    const props = options.props || {};
+    const prop = keys.map((k) => props[k]).find(Boolean);
+    if (!prop || !prop.userData) { warn(new Error(`slide: no surface "${surface}"`)); return false; }
+    // the meeting-room board is 2:1; everything else takes the 4:3 layouts
+    const opts = surface === 'meetingBoard' && o.wide === undefined ? Object.assign({ wide: true }, o) : o;
+    const tex = id == null ? null : safe(() => slideTexture(id, opts));
+    if (id != null && !tex) return false;
+    const set = prop.userData.setScreen || prop.userData.setDrawing;
+    if (typeof set !== 'function') return false;
+    return safe(() => { set(tex); return true; }) || false;
   }
 
   /* ---- conveniences ---- */
@@ -1636,6 +1699,8 @@ export function createDirector(stage, ui, options = {}) {
    * @property {(actor:*, target:*, ms?:number)=>void} face
    * @property {(actor:*, at:*, facing?:*)=>void} place
    * @property {(actor:*, anim:string)=>void} anim
+   * @property {(actor:*, expr:string|null)=>void} expression
+   * @property {(actor:*, open:boolean|null)=>void} mouth
    * @property {(actor:*, on?:boolean)=>void} sit
    * @property {(actor:*, emote:string)=>Promise<void>} emote
    * @property {(actor:*, text:string, o?:Object)=>Promise<void>} say
@@ -1652,7 +1717,8 @@ export function createDirector(stage, ui, options = {}) {
    * @property {(patch:Object)=>void} updateHud
    * @property {(text:string, o?:Object)=>Promise<void>} encounter
    * @property {(id:string, o?:Object)=>void} sfx
-   * @property {(id:string|null)=>void} music
+   * @property {(id:string|null, o?:Object)=>void} music
+   * @property {(surface:string, id:string|null, o?:Object)=>boolean} slide
    * @property {(ms?:number)=>Promise<void>} beat
    * @property {(...ps:*)=>Promise<void>} all
    * @property {(map:Object)=>void} registerShots
@@ -1685,6 +1751,8 @@ export function createDirector(stage, ui, options = {}) {
     face,
     place,
     anim,
+    expression,
+    mouth,
     sit,
     emote,
 
@@ -1705,6 +1773,7 @@ export function createDirector(stage, ui, options = {}) {
 
     sfx,
     music,
+    slide,
 
     beat,
     all,

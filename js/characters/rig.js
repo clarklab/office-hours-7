@@ -119,6 +119,8 @@ const ANIM_FACE = {
   shake: 'squint',
   sniff: 'squint',
   zoomies: 'happy+open',
+  hop: 'shocked+open',
+  bite: 'squint',
 };
 
 /** Emote aliases so `'?'` and `'!'` and `'$'` work too. @type {Object<string,string>} */
@@ -1229,6 +1231,25 @@ export const HUMAN_POSES = {
 
   sit(P, t, c) {
     HUMAN_POSES.idle(P, t, c);
+  },
+
+  /** Just been bitten: hopping on one foot, clutching the other ankle, one arm flailing. */
+  hop(P, t) {
+    const h = Math.abs(Math.sin(t * 7.5));
+    P.r('thighL', FWD * 0.95, 0, 0.05);
+    P.r('shinL', 1.55, 0, 0);
+    P.r('footL', 0.3, 0, 0);
+    P.r('thighR', FWD * 0.05, 0, -0.03);
+    P.r('shinR', 0.14 * (1 - h), 0, 0);
+    P.r('footR', -0.07 * (1 - h), 0, 0);
+    P.r('spine', 0.26, 0, 0.07 * Math.sin(t * 7.5));
+    P.r('chest', 0.12, 0, 0);
+    P.r('head', -0.12, 0.15 * Math.sin(t * 3.7), 0.05 * Math.sin(t * 7.5));
+    P.r('armL', FWD * 0.85, 0, 0.12);
+    P.r('foreL', FWD * 0.95, 0, 0);
+    P.r('armR', FWD * 0.2, 0, 1.25 + 0.25 * Math.sin(t * 15));
+    P.r('foreR', FWD * 0.45, 0, 0.2 * Math.sin(t * 15));
+    P.p('hips', 0, h * 0.07, 0);
   },
 };
 

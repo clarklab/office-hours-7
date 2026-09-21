@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>MUNCH slides</title>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+<style>
+  html,body{margin:0;background:#101216;color:#c9ccd2;font:13px/1.4 ui-monospace,Menlo,monospace}
+  header{padding:16px 20px;border-bottom:1px solid #22262c}
+  h1{margin:0;font-size:15px;color:#fff}
+  h2{margin:24px 20px 0;font-size:13px;color:#8fd0ae}
+  label{margin-left:16px;color:#8a9199}
+  .grid{display:flex;flex-wrap:wrap;gap:20px;padding:16px 20px}
+  .card{background:#181b20;border:1px solid #262a31;padding:10px;max-width:max-content}
+  .card canvas{display:block;image-rendering:pixelated;background:#000}
+  .row{display:flex;gap:10px;align-items:flex-end}
+  .id{color:#fff;font-weight:bold;margin-top:8px}
+  .desc{color:#8a9199;max-width:384px}
+  .opts{color:#6c737c;max-width:384px;font-size:11px}
+</style>
+<header>
+  <h1>MUNCH, Inc. slide deck — js/sets/slides.js</h1>
+  <span>each slide at 3x (pixelated) with a 1x thumb</span>
+  <label><input type=checkbox id=wide> wide (192x96)</label>
+</header>
+<div id=out></div>
+<script type=module>
+import { SLIDE_IDS, SLIDE_INFO, slideTexture } from '/js/sets/slides.js';
+
+const out = document.getElementById('out');
+const wideBox = document.getElementById('wide');
+
+function enlarge(src, k) {
+  const c = document.createElement('canvas');
+  c.width = src.width * k; c.height = src.height * k;
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = false;
+  x.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+// ?ids=a,b filters the grid, ?k=4 changes the zoom, ?wide=1 starts in 2:1 mode
+const q = new URLSearchParams(location.search);
+const only = q.get('ids') ? q.get('ids').split(',') : null;
+const K = +q.get('k') || 3;
+if (q.get('wide')) wideBox.checked = true;
+
+function render() {
+  const wide = wideBox.checked;
+  out.innerHTML = `<h2>${SLIDE_IDS.length} slides · ${wide ? '192x96 (wide)' : '128x96'}</h2>`;
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  for (const id of SLIDE_IDS.filter((i) => !only || only.includes(i))) {
+    const tex = slideTexture(id, wide ? { wide: true } : {});
+    const src = tex.image;
+    const card = document.createElement('div');
+    card.className = 'card';
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.append(enlarge(src, K), enlarge(src, 1));
+    const info = SLIDE_INFO[id];
+    const opts = Object.entries(info.opts).map(([k, v]) => `${k}: ${v}`).join(' · ');
+    card.append(row);
+    card.insertAdjacentHTML('beforeend',
+      `<div class=id>${id} <span style="color:#6c737c;font-weight:normal">${src.width}x${src.height}</span></div>` +
+      `<div class=desc>${info.desc}</div><div class=opts>${opts}</div>`);
+    grid.append(card);
+  }
+  out.append(grid);
+}
+wideBox.addEventListener('change', render);
+render();
+window.__done = true;
+</script>

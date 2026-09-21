@@ -13,7 +13,7 @@
  *      absolutely does not know it: the tail goes like a helicopter, she bounces
  *      on the spot, and one long ear lives permanently flipped inside-out.
  *
- * Animations: idle | walk | run | sit | bark | shake | sniff | zoomies.
+ * Animations: idle | walk | run | sit | bark | shake | sniff | zoomies | bite.
  * The human vocabulary is aliased onto those so a Director that calls
  * `play('talk')` on the dog gets a bark instead of an error.
  *
@@ -352,6 +352,32 @@ const DOG_POSES = {
     P.r('thighFR', 0.02 + 0.10 * Math.sin(t * 2.6), 0, 0);
   },
 
+  /**
+   * The bite: a lunge, a wide-open jaw, then she clamps on and TUGS. Aim her
+   * at an ankle; she does the rest.
+   */
+  bite(P, t) {
+    stance(P);
+    const lunge = Math.min(1, t / 0.16);
+    const tug = t < 0.22 ? 0 : Math.sin((t - 0.22) * 17);
+    P.p('chest', 0, 0.01 * (1 - lunge), 0.05 * lunge);
+    P.r('chest', 0.10 * lunge, 0, 0);
+    P.p('hips', 0, -0.012, -0.03 * lunge);
+    P.r('neck', 0.40 * lunge, 0.22 * tug, 0);
+    P.r('head', 0.20 * lunge, 0.32 * tug, 0.22 * tug);
+    P.r('jaw', t < 0.16 ? 0.75 * lunge : 0.06, 0, 0);
+    // back legs dug in, front leg braced forward
+    for (const s of ['L', 'R']) {
+      P.r(`thighB${s}`, -0.32, 0, 0);
+      P.r(`shinB${s}`, 0.62, 0, 0);
+    }
+    P.r('thighFR', -0.30 * lunge, 0, 0);
+    P.r('earL', -0.4, 0.3 * tug, 0.3 * tug);
+    P.r('earR', -0.2, 0, 0);
+    P.r('tailA', -0.95, Math.sin(t * 11) * 0.65, 0);
+    P.r('tailB', -0.30, Math.sin(t * 11 - 0.5) * 0.4, 0);
+  },
+
   zoomies(P, t) {
     DOG_POSES.run(P, t * 1.35, /** @type {any} */ ({}));
     const w = Math.sin(t * 5.5);
@@ -374,7 +400,7 @@ DOG_POSES.shrug = DOG_POSES.shake;
 DOG_POSES.slump = DOG_POSES.sit;
 
 // The stump: tucked when she is calm, paddling the air when she is not.
-const PADDLE = { walk: 10, run: 16, zoomies: 18, bark: 12, cheer: 12, talk: 12, panic: 18 };
+const PADDLE = { walk: 10, run: 16, zoomies: 18, bark: 12, cheer: 12, talk: 12, panic: 18, bite: 20 };
 for (const name of Object.keys(DOG_POSES)) {
   const pose = DOG_POSES[name];
   const rate = PADDLE[name] || 0;
@@ -506,6 +532,7 @@ export function createTuesday() {
         idle: 'happy+open', walk: 'happy', run: 'happy+open', sit: 'happy+open',
         bark: 'happy', talk: 'happy', cheer: 'happy', shake: 'squint',
         sniff: 'squint', zoomies: 'happy+open', panic: 'shocked+open', slump: 'neutral',
+        bite: 'squint',
       },
     };
   }, { skeleton: dogSkeleton(), poses: DOG_POSES });

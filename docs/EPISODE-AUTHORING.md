@@ -73,6 +73,30 @@ Pose the scene for the thumbnail and return. `tools/shoot.mjs` calls it, renders
 ~30 frames and screenshots. Re-use `setDressing()` so the thumbnail and the
 episode agree about where people live.
 
+## Sound, slides and faces
+
+All of these are listed, live, by `node tools/vocab.mjs`.
+
+- **Music.** `d.music('intrigue')` crossfades to one of ~14 synthesised beds,
+  each with a mood line (happy, breezy muzak, corporate, intrigue, tense, goofy,
+  sad, triumph, dreamy flashback, 80s party, birthday…). `d.music(null)` stops.
+  Give each scene a bed and change it when the mood turns.
+- **Sound effects.** `d.sfx('boing')` — boing, bonk, plunk, pop, ding, success,
+  cheer, applause, rimshot, sadTrombone, slideWhistle, recordScratch, gasp,
+  chomp, honk, drumroll and the rest. To land a punchline, hang one on the line
+  itself: `d.say(a, 'Closed him. OUT.', { sfx: 'rimshot', sfxAt: 'end' })`.
+  Audition everything at `/tools/audio-audition.html`.
+- **Slides.** `d.slide('projector' | 'meetingBoard' | 'whiteboard', 'barChart', opts)`
+  puts a MUNCH deck slide on a surface: title, agenda, lineChart, barChart,
+  pieChart, spreadsheet, meme, billboard, social, orgChart, roadmap, kpi, venn,
+  quote, announcement, thanks. Most take text opts (`title`, `text`, `items`…).
+  Preview them at `/tools/slides-preview.html`.
+- **Faces.** Every character has `neutral`, `happy`, `shocked` and `squint`, and
+  a mouth that flaps while they talk. `d.expression(a, 'squint')` holds one;
+  `d.mouth(a, true)` holds the mouth open; `null` hands either back.
+- **Guest stars.** A character in `GUEST_IDS` (`gary`) is only built for an
+  episode whose registry entry lists it in `guests: ['gary']`.
+
 ## Registering it
 
 One entry in `js/episodes/index.js`:
@@ -91,7 +115,7 @@ Object.freeze({
 
 This is the one thing that is not in your episode file, and it is deliberate:
 the landing page renders its cards from this registry **without loading any
-episode module**. The three episodes are 66KB of script between them, against a
+episode module**. The episodes are 66KB of script between them, against a
 46KB gallery bundle — moving this metadata into the episode files would more
 than double what the landing page has to parse, purely to render six lines of
 text. The registry is the site's table of contents, not part of your episode.

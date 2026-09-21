@@ -22,6 +22,7 @@
  * @property {string} runtime       `'1:00'`, mm:ss
  * @property {string} accent        CSS hex used for the card, the poster plate and the chrome
  * @property {string[]} starring    character ids, in billing order
+ * @property {string[]} [guests]     guest-star ids (GUEST_IDS) the player must build for this episode
  * @property {string} thumb         path to the rendered thumbnail; may 404 until `tools/shoot.mjs` runs
  */
 
@@ -65,6 +66,19 @@ export const EPISODES = Object.freeze([
     accent: '#c98a4b',
     starring: Object.freeze(['tuesday', 'kiki', 'brad', 'dez', 'roop', 'marge']),
     thumb: '/assets/thumbs/ep3.png',
+  }),
+  Object.freeze({
+    id: 'ep4',
+    number: 4,
+    ordinal: 'FOUR',
+    numeral: 'IV',
+    title: 'GOOD GIRL',
+    logline: 'Take Your Dog To Work Day. Nobody brings a dog. One shows up anyway.',
+    runtime: '2:15',
+    accent: '#d05a4a',
+    starring: Object.freeze(['tuesday', 'kiki', 'brad', 'dez', 'roop', 'marge']),
+    guests: Object.freeze(['gary']),
+    thumb: '/assets/thumbs/ep4.png',
   }),
 ]);
 

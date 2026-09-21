@@ -1,5 +1,5 @@
 /**
- * BRAD HOLLOWAY — founder and CEO of MULCH, Inc.
+ * BRAD HOLLOWAY — founder and CEO of MUNCH, Inc.
  *
  * Silhouette hooks, in order of how far away they read:
  *   1. he is the tallest thing in the office by a clear head;

@@ -44,6 +44,7 @@ js/characters/           six characters, procedural animation
 js/sets/                 the office
 js/episodes/             ep1, ep2, ep3
 docs/SPEC.md             the build contract
+docs/EPISODE-AUTHORING.md  how to write an episode (one file); `npm run vocab`
 docs/ref/                FF7 reference captures
 ```
 

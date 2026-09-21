@@ -697,6 +697,10 @@ logo is the single loudest signal of that. This supersedes every earlier mention
 - Logo lockup / title cards / hero: **OFFICE HOURS VII** (roman numeral)
 - Sub-brand: **a MULCH production**
 
+> **Writing an episode?** Read [EPISODE-AUTHORING.md](./EPISODE-AUTHORING.md) first, and
+> run `npm run vocab` to print the live list of marks, shots, characters, animations and
+> Director verbs. An episode is one self-contained file; that document is its contract.
+
 ## 11.1 The logo modules — already written, DO NOT reimplement
 There are two, and they are not interchangeable:
 

@@ -456,7 +456,16 @@ function makeReport(label, url) {
 }
 
 /** Local 404s that are expected while the show is being built. */
-const SOFT_404 = [/\/assets\/thumbs\//, /favicon/i, /apple-touch-icon/i];
+const SOFT_404 = [
+  /\/assets\/thumbs\//,
+  /favicon/i,
+  /apple-touch-icon/i,
+  // /api/* is served by Netlify Functions, which do not exist under the static
+  // dev server this harness runs. A 404 there locally means "not Netlify", not
+  // "broken" — and the pages are built to degrade when those routes are absent,
+  // which is exactly the state being exercised here.
+  /\/api\//,
+];
 
 /** Console noise that is not a real failure. */
 const IGNORE_CONSOLE = [

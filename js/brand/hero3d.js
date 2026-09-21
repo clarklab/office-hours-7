@@ -105,7 +105,7 @@ export async function createLiveHero(o) {
   const canvas = document.createElement('canvas');
   canvas.className = 'hero-plate hero-live';
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'OFFICE HOURS VII — a MULCH production');
+  canvas.setAttribute('aria-label', 'OFFICE HOURS VII — a MUNCH production');
 
   const stage = createStage(canvas);
   const { camera } = stage;

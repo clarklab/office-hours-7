@@ -85,6 +85,14 @@ uniform float uJitter;
 uniform float uJitterScale;
 uniform float uUnlit;
 
+#ifdef USE_MAP
+// three.js folds a texture's offset/repeat/rotation/center into texture.matrix
+// and hands it to its own materials as uvTransform. A hand-written shader gets
+// none of that for free: sampling the raw uv attribute ignores offset and
+// repeat entirely, which maps a whole atlas onto every face that uses one.
+uniform mat3 uMapTransform;
+#endif
+
 uniform vec3  uLightPos[${MAX_LIGHTS}];
 uniform vec3  uLightColor[${MAX_LIGHTS}];
 uniform float uLightRange[${MAX_LIGHTS}];
@@ -119,9 +127,14 @@ void main() {
   // ---- 2. affine texture mapping ----------------------------------------
   // Perspective-correct interpolation of (uv * w) divided by that of (w)
   // collapses to plain screen-linear interpolation of uv. That is the swim.
-  vUvA = uv * clip.w;
+#ifdef USE_MAP
+  vec2 tuv = ( uMapTransform * vec3( uv, 1.0 ) ).xy;
+#else
+  vec2 tuv = uv;
+#endif
+  vUvA = tuv * clip.w;
   vUvW = clip.w;
-  vUvP = uv;
+  vUvP = tuv;
 
   // ---- 3. gouraud lighting (per-vertex, one varying) --------------------
   vec3 vn = normalize( normalMatrix * normal );
@@ -285,7 +298,10 @@ export function ps1Material(o = {}) {
     uFogColor: SHARED.uFogColor,
     uFogDensity: SHARED.uFogDensity,
   };
-  if (map) uniforms.uMap = { value: map };
+  if (map) {
+    uniforms.uMap = { value: map };
+    uniforms.uMapTransform = { value: new THREE.Matrix3() };
+  }
 
   const mat = new THREE.ShaderMaterial({
     vertexShader: VERT,
@@ -302,6 +318,16 @@ export function ps1Material(o = {}) {
     lights: false,
     toneMapped: false,
   });
+
+  if (map) {
+    // The transform has to be refreshed per draw, not once at build time: the
+    // rig switches a face frame by writing texture.offset, and three.js only
+    // recomputes texture.matrix automatically for its own materials.
+    mat.onBeforeRender = () => {
+      if (map.matrixAutoUpdate) map.updateMatrix();
+      uniforms.uMapTransform.value.copy(map.matrix);
+    };
+  }
 
   mat.name = 'ps1';
   mat.userData.ps1 = true;

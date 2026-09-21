@@ -63,6 +63,10 @@
           Play
         </button>
         <p class="hint">Sound is synthesised on play &mdash; your browser needs the click.</p>
+        <!-- The chrome bar is not up yet on the title card, so the fullscreen
+             toggle needs its own quiet home here. -->
+        <button class="ghostbtn" id="c-full-idle" type="button" aria-pressed="false"
+                data-oh-fullscreen>Fullscreen</button>
       </div>
     </div>
 
@@ -104,7 +108,7 @@
         <button id="c-mute" type="button" aria-pressed="false">Mute</button>
         <span class="time" id="c-time">0:00</span>
         <span class="spacer"></span>
-        <button id="c-full" type="button" aria-pressed="false">Fullscreen</button>
+        <button id="c-full" type="button" aria-pressed="false" data-oh-fullscreen>Fullscreen</button>
         <a href="/">Back</a>
       </div>
     </div>

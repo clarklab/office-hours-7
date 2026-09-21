@@ -849,22 +849,31 @@ export function initPlayer() {
     const on = isFullscreen();
     if (on) leaveFullscreen();
     else enterFullscreen();
-    // The button and the status line are settled by onFullscreenChange, which also
-    // fires when the browser drops out of fullscreen on its own.
-    setStatus(on ? 'Leaving fullscreen.' : 'Fullscreen.');
+    // Nothing is announced or relabelled here: the request can be refused, and
+    // onFullscreenChange is what actually knows, Esc and all.
   }
 
+  /**
+   * Every fullscreen toggle on the page. There are two: the one in the chrome bar,
+   * and the one on the title card, because the chrome bar is hidden until an
+   * episode is actually running.
+   *
+   * @returns {HTMLElement[]}
+   */
+  const fsButtons = () => Array.from(document.querySelectorAll('[data-oh-fullscreen]'));
+
   function syncFullscreenButton() {
-    const btn = $('c-full');
-    if (!btn) return;
-    if (!canFullscreen()) {
-      btn.hidden = true;
-      return;
-    }
-    btn.hidden = false;
+    const supported = canFullscreen();
     const on = isFullscreen();
-    btn.textContent = on ? 'Exit full' : 'Fullscreen';
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    for (const btn of fsButtons()) {
+      if (!supported) {
+        btn.hidden = true;
+        continue;
+      }
+      btn.hidden = false;
+      btn.textContent = on ? 'Exit full' : 'Fullscreen';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
   }
 
   /**
@@ -875,6 +884,7 @@ export function initPlayer() {
     syncFullscreenButton();
     layout();
     showChrome();
+    setStatus(isFullscreen() ? 'Fullscreen.' : 'Left fullscreen.');
   }
 
   /**
@@ -1049,7 +1059,7 @@ export function initPlayer() {
   $('c-mute')?.addEventListener('click', () => { toggleMute(); });
   $('c-slower')?.addEventListener('click', () => { nudgeSpeed(-1); });
   $('c-faster')?.addEventListener('click', () => { nudgeSpeed(1); });
-  $('c-full')?.addEventListener('click', () => { toggleFullscreen(); });
+  for (const btn of fsButtons()) btn.addEventListener('click', () => { toggleFullscreen(); });
   syncMuteButton();
   syncFullscreenButton();
   userSpeed = loadSpeed();

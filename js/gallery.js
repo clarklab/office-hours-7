@@ -493,15 +493,20 @@ const HERO_MAX = 760;
  * @returns {() => void} teardown
  */
 export function mountHero(slot) {
+  /** @type {HTMLImageElement|null} the rendered plate, once it has decoded */
+  let heroPlate = null;
   if (!slot) return () => {};
   let lastW = -1;
   /** @type {HTMLCanvasElement|null} */
   let canvas = null;
 
-  const draw = () => {
+  const draw = (force) => {
     const avail = Math.round(slot.clientWidth || HERO_MAX);
     const w = Math.max(240, Math.min(HERO_MAX, avail));
-    if (Math.abs(w - lastW) < 2 && canvas) return;
+    // `force` is how the plate gets in: the width has not changed when the
+    // image finishes decoding, so the ordinary same-width bail would drop the
+    // swap and leave the fallback drawing on screen forever.
+    if (!force && Math.abs(w - lastW) < 2 && canvas) return;
     lastW = w;
     const h = Math.round(w * 0.70);
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -515,10 +520,28 @@ export function mountHero(slot) {
     if (!c) return;
     c.scale(dpr, dpr);
     drawFullLogo(c, w, h, { subtitle: 'a MULCH production', glow: 0.42, seed: 7 });
+    // The procedural lockup above is the fallback. What normally shows is the
+    // rendered plate: the same 3D lockup the episodes open with, shot in the
+    // office by `tools/shoot.mjs brand`, so the hero and the title card cannot
+    // drift apart. Only swapped in once it has actually decoded, so a missing
+    // file degrades to the drawing rather than to a broken image.
+    if (!heroPlate) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.alt = 'OFFICE HOURS VII — a MULCH production';
+      img.className = 'hero-plate';
+      img.addEventListener('load', () => { heroPlate = img; draw(true); });
+      img.src = '/assets/logo.png';
+    }
 
-    if (canvas) canvas.replaceWith(next);
-    else slot.appendChild(next);
-    canvas = next;
+    const shown = heroPlate || next;
+    if (heroPlate) {
+      heroPlate.style.width = `${w}px`;
+      heroPlate.style.height = 'auto';
+    }
+    if (canvas) canvas.replaceWith(shown);
+    else slot.appendChild(shown);
+    canvas = shown;
     slot.style.minHeight = `${h}px`;
   };
 

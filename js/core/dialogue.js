@@ -1318,9 +1318,35 @@ export function createDialogue(host) {
       }
     };
 
+    /**
+     * Scene mode: the lockup is real geometry in the world behind this surface,
+     * so all that is left to draw is the tagline. No black fill — covering the
+     * office would defeat the point of staging the logo in it.
+     */
+    const paintTagline = () => {
+      ctx.clearRect(0, 0, W, H);
+      const sub = String(o.subtitle || '').toUpperCase();
+      if (!sub) return;
+      const tracking = 3;
+      const sw = sub.length * (ADV + tracking) - tracking;
+      const sx = Math.round((W - sw) / 2);
+      const sy = H - 34;
+      // A soft scrim only under the text: enough to hold it against a bright
+      // window, not enough to read as a bar.
+      const grad = ctx.createLinearGradient(0, sy - 12, 0, sy + CAP + 10);
+      grad.addColorStop(0, 'rgba(4,6,14,0)');
+      grad.addColorStop(0.5, 'rgba(4,6,14,0.72)');
+      grad.addColorStop(1, 'rgba(4,6,14,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, sy - 12, W, CAP + 22);
+      drawText(ctx, sub, sx, sy, { tracking, color: '#cfe0ff', lowColor: '#8fa6d8' });
+    };
+
     let disposed = false;
     const run = async () => {
-      if (o.logo) {
+      if (o.scene) {
+        paintTagline();
+      } else if (o.logo) {
         ctx.fillStyle = '#04060b';
         ctx.fillRect(0, 0, W, H);
         try {

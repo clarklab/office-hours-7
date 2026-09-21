@@ -763,7 +763,536 @@ button {
 }
 
 /* ------------------------------------------------------------------ *
- * 11. footer
+ * 11. make your own episode
+ * ------------------------------------------------------------------ */
+
+.make {
+  display: grid;
+  gap: clamp(18px, 3vw, 34px);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 820px) {
+  .make { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
+  /* The status panel is the result of the form, so it sits under both columns. */
+  .make-status { grid-column: 1 / -1; }
+}
+
+.make-copy p {
+  max-width: 52ch;
+  color: var(--oh-dim);
+  font-size: var(--t-lg);
+  line-height: 1.75;
+}
+
+.make-copy p + p { margin-top: 1em; }
+
+.make-limit {
+  margin-top: 1.2em;
+  padding-left: 13px;
+  border-left: 3px solid var(--oh-ep2);
+  color: var(--oh-silver-hi);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+}
+
+/* --- the form ------------------------------------------------------- */
+
+.make-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--oh-panel) 0%, var(--oh-ink) 100%);
+}
+
+.make-label {
+  color: var(--oh-silver-hi);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.make-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 0;
+  background: var(--oh-black);
+  color: var(--oh-silver-hi);
+  font: inherit;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 0.2s var(--ease);
+}
+
+.make-input::placeholder { color: var(--oh-faint); }
+.make-input:hover { border-color: color-mix(in srgb, var(--oh-silver) 26%, transparent); }
+.make-input:read-only { opacity: 0.5; }
+
+.make-help,
+.make-error {
+  color: var(--oh-silver-lo);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+.make-error { color: #e8544d; }
+.make-error[hidden] { display: none; }
+
+/* --- worked examples ------------------------------------------------ *
+ * A one-line premise is the shape the generator wants, and three tappable ones
+ * teach that faster than any instruction about how to write a prompt.
+ */
+
+.make-egs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.make-egs-label {
+  flex: 0 0 auto;
+  margin-right: 2px;
+  color: var(--oh-silver-lo);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+}
+
+.make-eg {
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--edge);
+  background: var(--oh-black);
+  color: var(--oh-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.make-eg::before {
+  content: '\201C';
+  margin-right: 3px;
+  color: var(--oh-faint);
+}
+
+.make-eg::after {
+  content: '\201D';
+  margin-left: 3px;
+  color: var(--oh-faint);
+}
+
+.make-eg:hover,
+.make-eg:focus-visible {
+  border-color: var(--oh-silver-lo);
+  color: var(--oh-silver-hi);
+}
+
+.make-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.make-count {
+  color: var(--oh-silver-lo);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The same PS1 menu button as .start, one size down. */
+.make-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 22px;
+  border: 1px solid var(--oh-silver-lo);
+  background:
+    linear-gradient(180deg, rgba(43, 79, 168, 0.30), rgba(6, 11, 42, 0.30)),
+    var(--oh-panel);
+  color: var(--oh-silver-hi);
+  font-size: var(--t-sm);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px rgba(223, 230, 255, 0.10);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.make-go .tri { color: var(--oh-ep1); font-size: 10px; }
+
+.make-go:hover:not(:disabled),
+.make-go:focus-visible:not(:disabled) {
+  border-color: var(--oh-silver-hi);
+  background:
+    linear-gradient(180deg, rgba(43, 79, 168, 0.55), rgba(6, 11, 42, 0.45)),
+    var(--oh-panel-2);
+}
+
+.make-go:disabled { opacity: 0.4; cursor: default; }
+
+/* Below this the button and the counter stop fitting on one line together. */
+@media (max-width: 520px) {
+  .make-row { flex-direction: column-reverse; align-items: stretch; }
+  .make-go { justify-content: center; }
+  .make-count { text-align: right; }
+}
+
+/* --- the status panel: waiting, ready, or stopped -------------------- */
+
+.make-status {
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid var(--edge);
+  background: var(--oh-ink);
+}
+
+.make-status[hidden] { display: none; }
+.make-status.is-done { border-color: color-mix(in srgb, var(--oh-ep1) 40%, transparent); }
+.make-status.is-stop { border-color: color-mix(in srgb, #e8544d 36%, transparent); }
+
+.make-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--oh-silver-hi);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.make-spin {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  background: var(--oh-ep1);
+  animation: make-pulse 1.1s steps(1, end) infinite;
+}
+
+@keyframes make-pulse {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.22; }
+}
+
+/* An indeterminate sweep — generation has no percentage to report, and inventing
+   one would be a lie that runs out before the job does. overflow:hidden keeps the
+   travelling fill from ever widening the page. */
+.make-bar {
+  position: relative;
+  overflow: hidden;
+  height: 3px;
+  margin-top: 14px;
+  background: color-mix(in srgb, var(--oh-silver) 10%, transparent);
+}
+
+.make-bar span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--oh-ep1), transparent);
+  animation: make-sweep 1.7s var(--ease) infinite;
+}
+
+@keyframes make-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(400%); }
+}
+
+/* The stages the backend actually reports, kept as a list so the viewer can see
+   what has already happened rather than one word that keeps being replaced. */
+.make-steps {
+  display: grid;
+  gap: 7px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.make-steps li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--oh-silver-lo);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.make-steps li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--oh-faint);
+}
+
+.make-steps li.is-done { color: var(--oh-dim); }
+
+.make-steps li.is-done::before {
+  background: var(--oh-dim);
+  border-color: var(--oh-dim);
+}
+
+.make-steps li.is-now { color: var(--oh-silver-hi); }
+
+.make-steps li.is-now::before {
+  background: var(--oh-ep1);
+  border-color: var(--oh-ep1);
+  animation: make-pulse 1.1s steps(1, end) infinite;
+}
+
+.make-note {
+  margin-top: 14px;
+  color: var(--oh-silver-lo);
+  font-size: var(--t-sm);
+  line-height: 1.55;
+}
+
+.make-elapsed {
+  color: var(--oh-silver);
+  font-variant-numeric: tabular-nums;
+}
+
+.make-kicker {
+  color: var(--oh-ep1);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.make-status.is-stop .make-kicker { color: #e8544d; }
+
+.make-title {
+  margin-top: 8px;
+  color: var(--oh-silver-hi);
+  font-size: clamp(20px, 1.2vw + 17px, 26px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.make-sub {
+  margin-top: 6px;
+  color: var(--oh-silver-lo);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+}
+
+.make-msg {
+  margin-top: 8px;
+  max-width: 58ch;
+  color: var(--oh-dim);
+  font-size: var(--t-md);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.make-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.make-watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border: 1px solid var(--oh-silver-lo);
+  background:
+    linear-gradient(180deg, rgba(43, 79, 168, 0.30), rgba(6, 11, 42, 0.30)),
+    var(--oh-panel);
+  color: var(--oh-silver-hi);
+  font-size: var(--t-sm);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.make-watch .tri { color: var(--oh-ep1); font-size: 10px; }
+
+.make-watch:hover,
+.make-watch:focus-visible {
+  border-color: var(--oh-silver-hi);
+  background:
+    linear-gradient(180deg, rgba(43, 79, 168, 0.55), rgba(6, 11, 42, 0.45)),
+    var(--oh-panel-2);
+}
+
+.make-copy-btn,
+.make-again {
+  padding: 12px 18px;
+  border: 1px solid var(--edge);
+  background: var(--oh-black);
+  color: var(--oh-dim);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.make-copy-btn:hover,
+.make-copy-btn:focus-visible,
+.make-again:hover,
+.make-again:focus-visible {
+  border-color: var(--oh-silver);
+  color: var(--oh-silver-hi);
+}
+
+/* The clipboard fallback's scratch field: off-screen, and fixed so it can never
+   add to the page's scrollable area. Removed the moment the copy is done. */
+.make-ghost {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * 12. made by viewers
+ * ------------------------------------------------------------------ *
+ * Deliberately NOT the .ep card. These are not canon: no episode number, no
+ * poster plate, no accent colour, a dashed edge and a kicker that says where
+ * they came from. If a viewer episode ever starts looking like one of the
+ * three, this section has failed.
+ */
+
+.vep-section[hidden] { display: none; }
+
+.vep-note {
+  max-width: 68ch;
+  margin-bottom: clamp(16px, 2vw, 24px);
+  color: var(--oh-silver-lo);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+}
+
+.vep-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 620px) { .vep-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 960px) { .vep-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.vep {
+  min-width: 0;
+  border: 1px dashed var(--edge);
+  background: var(--oh-ink);
+  transition: border-color 0.2s var(--ease);
+}
+
+.vep:hover,
+.vep:focus-within { border-color: color-mix(in srgb, var(--oh-silver) 34%, transparent); }
+
+.vep-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 16px 18px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.vep-link:focus-visible {
+  outline: 2px solid var(--oh-silver-hi);
+  outline-offset: -2px;
+}
+
+.vep-kicker {
+  color: var(--oh-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.vep-title {
+  color: var(--oh-silver);
+  font-size: var(--t-md);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.vep-log {
+  flex: 1 1 auto;
+  color: var(--oh-silver-lo);
+  font-size: var(--t-sm);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.vep-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.vep-run {
+  color: var(--oh-faint);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.vep-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--oh-dim);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+}
+
+.vep-cta .tri { font-size: 9px; }
+
+/* ------------------------------------------------------------------ *
+ * 13. footer
  * ------------------------------------------------------------------ */
 
 .foot {
@@ -784,7 +1313,7 @@ button {
 }
 
 /* ------------------------------------------------------------------ *
- * 12. the player
+ * 14. the player
  * ------------------------------------------------------------------ */
 
 body.watch {
@@ -1431,7 +1960,7 @@ body.poster .ovl { background: #000; }
 body.poster .idle-plate { display: none; }
 
 /* ------------------------------------------------------------------ *
- * 13. reduced motion
+ * 15. reduced motion
  * ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1454,4 +1983,17 @@ body.poster .idle-plate { display: none; }
   .play:focus-visible { transform: none; }
 
   .ep-tag::before { opacity: 1; }
+
+  /* The sweep is decoration; the pulse dots are the only sign the job is alive,
+     so they are pinned on rather than frozen mid-blink. The elapsed clock in the
+     loader keeps ticking either way. */
+  .make-bar span {
+    animation: none !important;
+    transform: none;
+    width: 100%;
+    opacity: 0.45;
+  }
+
+  .make-spin,
+  .make-steps li.is-now::before { opacity: 1; }
 }

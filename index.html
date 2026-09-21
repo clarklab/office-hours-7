@@ -132,11 +132,80 @@
       </div>
     </div>
   </section>
+  <section class="section" id="make" aria-labelledby="make-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="make-h" class="chroma">Make Your Own</h2>
+        <span class="line" aria-hidden="true"></span>
+        <span class="count">2 a day</span>
+      </div>
+
+      <div class="make">
+        <div class="make-copy">
+          <p>
+            Give us one line &mdash; something that could go wrong at MULCH &mdash; and the
+            office will turn it into a whole new episode, with the same six people and the
+            same carpet.
+          </p>
+          <p>
+            One line is all it needs. It plays in your browser exactly like the three above,
+            and you get a link you can send to anyone.
+          </p>
+          <p class="make-limit">Two episodes per device, per day.</p>
+        </div>
+
+        <form class="make-form" id="make-form" novalidate>
+          <label class="make-label" for="make-idea">Your one-line idea</label>
+          <textarea class="make-input" id="make-idea" name="idea" rows="3" maxlength="500"
+                    required spellcheck="true" autocomplete="off"
+                    aria-describedby="make-help make-count"
+                    placeholder="someone is stealing from the group fridge"></textarea>
+          <p class="make-help" id="make-help">
+            One line is plenty. Press the button, or hold Ctrl and press Enter.
+          </p>
+
+          <div class="make-egs" role="group" aria-labelledby="make-egs-label">
+            <span class="make-egs-label" id="make-egs-label">Or borrow one of ours</span>
+            <button class="make-eg" type="button" data-eg>someone is stealing from the group fridge</button>
+            <button class="make-eg" type="button" data-eg>the printer is haunted</button>
+            <button class="make-eg" type="button" data-eg>nobody will admit whose mug that is</button>
+          </div>
+
+          <p class="make-error" id="make-error" hidden></p>
+          <div class="make-row">
+            <span class="make-count" id="make-count">0 / 500</span>
+            <button class="make-go" id="make-go" type="submit">
+              <span class="tri" aria-hidden="true">&#9654;</span>
+              Make my episode
+            </button>
+          </div>
+        </form>
+
+        <div class="make-status" id="make-status" role="status" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section vep-section" id="viewer-eps" aria-labelledby="vep-h" hidden>
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="vep-h" class="chroma">Made by Viewers</h2>
+        <span class="line" aria-hidden="true"></span>
+        <span class="count" id="vep-count"></span>
+      </div>
+      <p class="vep-note">
+        These are not part of the three. Visitors typed an idea into the box above and the
+        office put it on. No episode number, no poster &mdash; same cast, same carpet.
+      </p>
+      <ul class="vep-grid" id="vep-grid"></ul>
+    </div>
+  </section>
 </main>
 
 <footer class="foot">
   <div class="wrap foot-in">
     <span>Office Hours 7 — a MULCH production</span>
+    <span><a href="/docs/">Writing an episode</a></span>
     <span>No real companies were named in the making of this.</span>
   </div>
 </footer>
@@ -144,5 +213,6 @@
 <div class="crt" aria-hidden="true"></div>
 
 <script type="module" src="/js/gallery.js"></script>
+<script type="module" src="/js/submit.js"></script>
 </body>
 </html>

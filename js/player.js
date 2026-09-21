@@ -35,6 +35,7 @@ import {
   EPISODES,
   DEFAULT_EPISODE_ID,
   getEpisode,
+  isViewerEpisodeId,
   nextEpisode,
   loadEpisode,
   runtimeSeconds,
@@ -240,7 +241,28 @@ export function initPlayer() {
   const posterMode = params.get('poster') === '1'
     || params.get('poster') === 'true'
     || window.__OH_POSTER === true;
-  const meta = getEpisode(rawId || DEFAULT_EPISODE_ID);
+  const viewerId = isViewerEpisodeId(rawId) ? rawId : null;
+  /**
+   * A viewer episode's real title lives in Blobs and has to be fetched, but
+   * everything downstream reads `meta` synchronously during init. So a viewer
+   * id gets a placeholder immediately and the fetched spec fills in the blanks
+   * before playback — rather than making the whole player async for the sake of
+   * one label.
+   */
+  const meta = viewerId
+    ? {
+      id: viewerId,
+      number: null,
+      ordinal: 'BY A VIEWER',
+      numeral: '\u2605',
+      title: 'Loading\u2026',
+      logline: 'An episode somebody asked for.',
+      runtime: '2:00',
+      accent: '#8aa0d8',
+      starring: [],
+      viewer: true,
+    }
+    : getEpisode(rawId || DEFAULT_EPISODE_ID);
 
   const frame = $('frame');
   const stageEl = $('stage');
@@ -264,10 +286,27 @@ export function initPlayer() {
   /** @type {string} */
   let state = S.IDLE;
 
+  /**
+   * Screen Wake Lock, held only while an episode is actually playing.
+   *
+   * Declared HERE, above `setState`, and not further down with the rest of the
+   * wake-lock code: `setState(S.IDLE)` runs during module evaluation a few lines
+   * below and calls `syncWakeLock()`, which reads these. A `let` declared later
+   * in the same scope would still be in its temporal dead zone at that point and
+   * would throw. That exact mistake already shipped once here, on the speed
+   * control, and made the control silently inert.
+   *
+   * @type {{release:() => Promise<void>}|null}
+   */
+  let wakeLock = null;
+  /** Guards against two overlapping requests producing two locks. */
+  let wakeLockPending = false;
+
   /** Sets the player state and mirrors it onto `window.__OH_STATE` for the harness. */
   const setState = (next) => {
     state = next;
     window.__OH_STATE = next;
+    syncWakeLock();
   };
   setState(S.IDLE);
   /** @type {import('/js/core/engine.js').Stage|null} */
@@ -449,6 +488,7 @@ export function initPlayer() {
   function teardown() {
     token++;
     finished = false;
+    releaseWakeLock();
     stopProgress();
     if (hideTimer) clearTimeout(hideTimer);
     hideTimer = 0;
@@ -618,14 +658,25 @@ export function initPlayer() {
     /** @type {Object} */
     let ep;
     try {
-      ep = await loadEpisode(meta.id);
+      ep = await loadAnyEpisode();
     } catch (err) {
       warn('loadEpisode', err);
-      fail(
-        'Not shot yet',
-        `Episode ${meta.number}, ${meta.title}, has not been filmed. `
-        + 'The other episodes may already be up — try the gallery.',
-      );
+      if (meta.viewer) {
+        // A viewer episode that will not load is missing or broken, not
+        // unfilmed — and the placeholder title is still "Loading…" at this
+        // point, so quoting it would produce a nonsense sentence.
+        fail(
+          'Episode not found',
+          `${(err && err.message) || 'That episode could not be loaded.'} `
+          + 'The three numbered episodes are always on the home page.',
+        );
+      } else {
+        fail(
+          'Not shot yet',
+          `Episode ${meta.number}, ${meta.title} has not been filmed. `
+          + 'The other episodes may already be up — try the gallery.',
+        );
+      }
       return;
     }
     if (mine !== token) return;
@@ -653,7 +704,7 @@ export function initPlayer() {
     frame?.classList.add('playing');
     showChrome();
     startProgress();
-    setStatus(`Playing episode ${meta.number}, ${meta.title}.`);
+    setStatus(meta.viewer ? `Playing ${meta.title}.` : `Playing episode ${meta.number}, ${meta.title}.`);
 
     try {
       await ep.run(ctx);
@@ -684,6 +735,8 @@ export function initPlayer() {
     if (chrome) chrome.hidden = true;
     showOverlay('end');
 
+    // nextEpisode() only indexes the numbered run, so this is null for a
+    // viewer episode and the button falls back to the gallery.
     const next = nextEpisode(meta.id);
     const nextBtn = /** @type {HTMLAnchorElement|null} */ ($('end-next'));
     if (nextBtn) {
@@ -695,7 +748,7 @@ export function initPlayer() {
         nextBtn.textContent = 'All episodes';
       }
     }
-    setStatus(`End of episode ${meta.number}, ${meta.title}.`);
+    setStatus(meta.viewer ? `End of ${meta.title}.` : `End of episode ${meta.number}, ${meta.title}.`);
     window.__OH_DONE = true;
     try {
       window.dispatchEvent(new CustomEvent('oh:episode-ended', { detail: { ep: meta.id } }));
@@ -771,6 +824,74 @@ export function initPlayer() {
     if (faster) faster.disabled = i >= SPEEDS.length - 1;
     const group = $('speedbar');
     if (group) group.setAttribute('aria-valuetext', fmtSpeed(userSpeed));
+  }
+
+  /* ----------------------------------------------------------- wake lock  */
+
+  /**
+   * An episode is a two-minute cutscene that nobody touches while it plays, so
+   * a phone will happily dim and lock the screen in the middle of it. The Screen
+   * Wake Lock API is the fix, held for exactly as long as playback lasts and no
+   * longer — a lock left on after the episode ends would sit there draining the
+   * battery on a page that is no longer doing anything.
+   *
+   * @returns {boolean}
+   */
+  function wakeLockSupported() {
+    return typeof navigator !== 'undefined'
+      && !!navigator.wakeLock
+      && typeof navigator.wakeLock.request === 'function';
+  }
+
+  /**
+   * Takes the lock, if playback is running and the page is actually on screen.
+   *
+   * The request rejects freely and legitimately — a background tab, a
+   * Permissions-Policy that forbids it, or a device low enough on battery that
+   * the OS declines. None of those are errors worth interrupting playback for,
+   * so they are logged and shrugged off.
+   *
+   * @returns {Promise<void>}
+   */
+  async function acquireWakeLock() {
+    if (!wakeLockSupported() || wakeLock || wakeLockPending) return;
+    if (state !== S.PLAYING) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+    wakeLockPending = true;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      // Awaiting means the world may have moved on: the viewer can have hit
+      // Back, or tabbed away, while the request was in flight. Do not keep a
+      // lock for an episode that is no longer playing.
+      if (state !== S.PLAYING || document.visibilityState !== 'visible') {
+        attempt(() => lock.release());
+        return;
+      }
+      wakeLock = lock;
+      // The OS drops the lock on its own when the page is hidden; this keeps our
+      // handle honest so the visibility handler knows to ask for a new one.
+      attempt(() => lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      }));
+    } catch (err) {
+      warn('wakeLock', err);
+    } finally {
+      wakeLockPending = false;
+    }
+  }
+
+  /** Drops the lock if we hold one. Safe to call when we do not. */
+  function releaseWakeLock() {
+    const lock = wakeLock;
+    wakeLock = null;
+    if (lock) attempt(() => lock.release());
+  }
+
+  /** Holds the lock exactly while the state is PLAYING. Called from setState. */
+  function syncWakeLock() {
+    if (state === S.PLAYING) acquireWakeLock();
+    else releaseWakeLock();
   }
 
   /* ---------------------------------------------------------------- mute  */
@@ -916,6 +1037,49 @@ export function initPlayer() {
     lastTapY = e.clientY;
   }
 
+  /**
+   * Loads whichever kind of episode this is.
+   *
+   * An official episode is a module. A viewer episode is a validated JSON spec
+   * served from Blobs and interpreted by episodes/runtime.js — never a module,
+   * because generated JavaScript executed on a public site is arbitrary code
+   * from whoever typed into the form.
+   *
+   * @returns {Promise<Object>}
+   */
+  async function loadAnyEpisode() {
+    if (!meta.viewer) return loadEpisode(meta.id);
+
+    const res = await fetch(`/api/episode?id=${encodeURIComponent(meta.id)}`);
+    if (!res.ok) {
+      const e = new Error(res.status === 404
+        ? 'That episode is not here. It may have been removed.'
+        : 'That episode could not be loaded.');
+      e.code = 'EPISODE_MISSING';
+      throw e;
+    }
+    const spec = await res.json();
+
+    // Fill in what the placeholder could not know.
+    meta.title = spec.title || meta.title;
+    meta.logline = spec.logline || meta.logline;
+    meta.starring = Array.isArray(spec.starring) ? spec.starring : [];
+    if (spec.seconds > 0) {
+      const m = Math.floor(spec.seconds / 60);
+      const sec = Math.round(spec.seconds % 60);
+      meta.runtime = `${m}:${String(sec).padStart(2, '0')}`;
+    }
+    set('w-title', meta.title);
+    set('w-run', meta.runtime);
+    set('idle-title', meta.title);
+    set('idle-log', meta.logline);
+    set('end-title', meta.title);
+    paintLogline();
+
+    const rt = await import('/js/episodes/runtime.js');
+    return rt.episodeFromSpec(spec);
+  }
+
   /* --------------------------------------------------------- poster mode  */
 
   /**
@@ -974,7 +1138,7 @@ export function initPlayer() {
 
     const mine = token;
     try {
-      const ep = await loadEpisode(meta.id);
+      const ep = await loadAnyEpisode();
       const ctx = await buildScene(mine);
       if (!ctx) throw new Error('scene build was cancelled');
 
@@ -1023,8 +1187,12 @@ export function initPlayer() {
   document.documentElement.style.setProperty('--accent', meta.accent);
   document.title = `${meta.title} — Episode ${meta.number} — OFFICE HOURS VII`;
 
-  const set = (id, text) => { const n = $(id); if (n) n.textContent = text; };
-  set('w-ep', `Episode ${meta.ordinal}`);
+  // A declaration, not a const arrow: loadAnyEpisode() is defined above this
+  // point and calls it, and this file has twice shipped a bug where a helper
+  // was used before its `let`/`const` had initialised. A hoisted function
+  // cannot be reached too early.
+  function set(id, text) { const n = $(id); if (n) n.textContent = text; }
+  set('w-ep', meta.viewer ? meta.ordinal : `Episode ${meta.ordinal}`);
   set('w-title', meta.title);
   set('w-run', meta.runtime);
   set('idle-kicker', `Office Hours 7 — Episode ${meta.ordinal}`);
@@ -1036,15 +1204,26 @@ export function initPlayer() {
   // Under the stage: the starring line always, and the logline only when the frame is
   // too short to carry it on the title card itself. Never both at once.
   const logEl = $('w-log');
-  if (logEl) {
+  /**
+   * A viewer episode's cast is not known until its spec arrives, so this is a
+   * function rather than a one-shot: called at init for the numbered episodes
+   * and again once a fetched spec has filled `meta` in. Without the second
+   * call the line renders as a bare "Starring" with nothing after it.
+   */
+  function paintLogline() {
+    if (!logEl) return;
     logEl.textContent = '';
     const line = document.createElement('span');
     line.className = 'line';
     line.textContent = meta.logline;
-    const cast = document.createElement('b');
-    cast.textContent = `Starring ${meta.starring.map((c) => c.toUpperCase()).join(' \u00b7 ')}`;
-    logEl.append(line, cast);
+    logEl.append(line);
+    if (meta.starring && meta.starring.length) {
+      const cast = document.createElement('b');
+      cast.textContent = `Starring ${meta.starring.map((c) => c.toUpperCase()).join(' \u00b7 ')}`;
+      logEl.append(cast);
+    }
   }
+  paintLogline();
 
   layout();
   if (typeof ResizeObserver === 'function') {
@@ -1113,6 +1292,13 @@ export function initPlayer() {
   });
 
   // Navigating away must not leak a GL context or leave a script running.
+  // The OS releases a wake lock whenever the document is hidden, and does not
+  // hand it back on return — so an episode left running in a background tab
+  // would come back without one. Re-take it when the page is visible again.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncWakeLock();
+  });
+
   window.addEventListener('pagehide', teardown);
   window.addEventListener('beforeunload', teardown);
 

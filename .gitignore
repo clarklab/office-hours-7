@@ -1,5 +1,1 @@
 node_modules/
-.DS_Store
-.netlify/
-package-lock.json
-__*_scratch.html

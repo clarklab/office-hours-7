@@ -81,6 +81,34 @@ const PROBE = async () => {
 };
 
 /**
+ * Reads the vocabulary once, in a real browser, and returns it.
+ *
+ * Exported so `tools/docs.mjs` can publish the same numbers this prints,
+ * rather than keeping a second copy that drifts.
+ *
+ * @returns {Promise<Object>}
+ */
+export async function readVocab() {
+  const server = await start({ port: 0 });
+  let browser;
+  try {
+    browser = await launchBrowser({});
+  } catch (err) {
+    await server.close();
+    throw new Error(`could not launch Chromium: ${(err && err.message) || err}`);
+  }
+  const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
+  try {
+    await page.goto(`${server.url}/watch.html?ep=ep1`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    return await page.evaluate(PROBE);
+  } finally {
+    await page.close().catch(() => {});
+    await browser.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+}
+
+/**
  * @param {string[]} [argv=process.argv.slice(2)]
  * @returns {Promise<number>} process exit code
  */

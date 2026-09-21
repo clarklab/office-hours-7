@@ -72,6 +72,37 @@ export const EPISODES = Object.freeze([
 export const DEFAULT_EPISODE_ID = EPISODES[0].id;
 
 /**
+ * Viewer-submitted episodes are a SEPARATE GROUPING from the numbered ones
+ * above, and the prefix is what keeps them apart everywhere at once.
+ *
+ * `EPISODES` is the show: three episodes we wrote, numbered, with a running
+ * order, thumbnails and a place in the canon. A viewer episode is somebody's
+ * prompt turned into a validated JSON spec — it has no number, it is not in the
+ * running order, `nextEpisode()` never walks into one, and it is never loaded as
+ * a module. Keeping the two in one list would put a stranger's idea in the
+ * middle of the show's running order, which is not what either is for.
+ *
+ * @type {string}
+ */
+export const VIEWER_PREFIX = 'u_';
+
+/**
+ * @param {string|null|undefined} id
+ * @returns {boolean} true for a viewer-submitted episode id
+ */
+export function isViewerEpisodeId(id) {
+  return typeof id === 'string' && id.startsWith(VIEWER_PREFIX) && id.length > VIEWER_PREFIX.length;
+}
+
+/**
+ * @param {string|null|undefined} id
+ * @returns {boolean} true for one of the numbered episodes we produced
+ */
+export function isOfficialEpisodeId(id) {
+  return !!getEpisode(id);
+}
+
+/**
  * Looks up episode metadata by id. Never throws — the caller decides what an unknown id
  * means (the gallery ignores it, the player shows a not-found card).
  *
@@ -121,6 +152,15 @@ export function runtimeSeconds(runtime) {
  * @throws {Error} if the id is unknown, or the module is missing / has no default export
  */
 export async function loadEpisode(id) {
+  // A viewer episode is data, not a module. It is fetched and interpreted by
+  // js/episodes/runtime.js; importing `/js/episodes/u_xxx.js` would be asking
+  // the server for a file that must never exist.
+  if (isViewerEpisodeId(id)) {
+    const e = new Error(`"${id}" is a viewer episode and does not load as a module.`);
+    e.code = 'EPISODE_IS_VIEWER';
+    throw e;
+  }
+
   const meta = getEpisode(id);
   if (!meta) throw new Error(`Unknown episode: ${id}`);
 

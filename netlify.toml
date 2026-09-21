@@ -36,17 +36,27 @@
 
 # ------------------------------------------------------- immutable artefacts
 #
-# three.js and the brand renders are content-stable and never edited in place.
+# Only /vendor is genuinely immutable: a pinned three.js build that is replaced by
+# upgrading to a new file, never by editing this one.
 
 [[headers]]
   for = "/vendor/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Everything under /assets is GENERATED and rewritten in place at a stable URL —
+# the brand renders come out of js/brand/logo.js and the episode stills out of
+# tools/shoot.mjs. These were `immutable` on the assumption that they never
+# changed, which meant regenerating a thumbnail did not reach anyone who had
+# already loaded the site: `immutable` tells a browser not to revalidate at all,
+# so the old file would have been served from cache for up to a year. There is no
+# content hash in these paths to make that safe, so they revalidate instead — the
+# same treatment the JS and CSS already get, and a 304 costs a few hundred bytes.
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=0, must-revalidate"
     # og.png is the social preview, so it has to stay embeddable from other origins.
     Cross-Origin-Resource-Policy = "cross-origin"
 

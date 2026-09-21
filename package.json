@@ -11,7 +11,8 @@
     "thumbs": "node tools/shoot.mjs",
     "csp": "node tools/csp-hash.mjs",
     "vocab": "node tools/vocab.mjs",
-    "brand": "node tools/shoot.mjs brand"
+    "brand": "node tools/shoot.mjs brand",
+    "docs": "node tools/docs.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.49.0"

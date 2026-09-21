@@ -27,6 +27,7 @@ No build step. It is plain ES modules served as static files.
 node tools/serve.mjs       # serve the repo root
 node tools/check.mjs       # Playwright smoke test: loads every page, plays every episode
 node tools/shoot.mjs       # regenerate episode thumbnails
+node tools/shoot.mjs cast  # regenerate the cast headshots in assets/cast/
 ```
 
 ## Layout

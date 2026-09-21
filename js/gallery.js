@@ -660,7 +660,9 @@ export function renderEpisodes(mount) {
 
 /**
  * Renders the cast strip from {@link CAST_PROFILES}. Data only — no geometry, no
- * three.js, no character modules.
+ * three.js, no character modules: the headshot on each card is a PNG shot ahead of
+ * time by `tools/shoot.mjs cast` from the real character rigs, so the page shows the
+ * actual models without the gallery ever touching the renderer.
  *
  * @param {HTMLElement} mount a `<ul>`
  */
@@ -668,13 +670,38 @@ export function renderCast(mount) {
   if (!mount) return;
   mount.textContent = '';
   for (const p of CAST_PROFILES) {
+    const face = el('span', 'cast-face');
+
     const li = el('li', 'cast-card', [
-      el('p', 'cast-name', p.name),
-      el('p', 'cast-role', `${p.fullName} \u2014 ${p.role}`),
-      el('p', 'cast-hook', p.hook),
-      el('ul', 'cast-stats', p.stats.map((s) => el('li', null, s))),
+      face,
+      el('div', 'cast-text', [
+        el('p', 'cast-name', p.name),
+        el('p', 'cast-role', `${p.fullName} \u2014 ${p.role}`),
+        el('p', 'cast-hook', p.hook),
+        el('ul', 'cast-stats', p.stats.map((s) => el('li', null, s))),
+      ]),
     ]);
     li.style.setProperty('--accent', p.color);
+
+    // Same contract as the episode stills: the headshot is only attached once it has
+    // actually loaded, so a missing /assets/cast/<id>.png leaves a text-only card
+    // rather than a broken image. NOT lazy — a detached lazy image never starts
+    // fetching, so `loading="lazy"` plus attach-on-load deadlock and the headshots
+    // would silently never appear. See the note on `ep-shot` above.
+    const shot = new Image();
+    shot.className = 'cast-shot';
+    shot.alt = `${p.fullName} \u2014 headshot`;
+    shot.width = 256;
+    shot.height = 256;
+    shot.loading = 'eager';
+    shot.decoding = 'async';
+    shot.addEventListener('load', () => {
+      face.appendChild(shot);
+      li.classList.add('has-shot');
+    });
+    shot.addEventListener('error', () => { /* a text-only card, which is the fallback */ });
+    shot.src = `/assets/cast/${encodeURIComponent(p.id)}.png`;
+
     mount.appendChild(li);
   }
 }

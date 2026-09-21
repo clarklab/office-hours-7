@@ -8,6 +8,8 @@
  * ```
  * node tools/shoot.mjs             # ep1, ep2, ep3
  * node tools/shoot.mjs ep2         # just one
+ * node tools/shoot.mjs brand       # /assets/og.png + /assets/logo.png
+ * node tools/shoot.mjs cast        # /assets/cast/<id>.png, six real headshots
  * node tools/shoot.mjs --width=1536
  * ```
  *
@@ -260,33 +262,331 @@ async function shootBrand(ctx) {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * cast headshots
+ * ------------------------------------------------------------------ */
+
+/** The cast, in billing order, and the filenames they are written under. */
+const CAST_IDS = ['brad', 'dez', 'kiki', 'roop', 'marge', 'tuesday'];
+
+/** Output edge, in pixels. 256 = CAST_CROP * CAST_SCALE, so the upscale is exact. */
+const CAST_PX = 256;
+
+/**
+ * Virtual pixels of the 384x216 frame kept. A square crop out of the middle of
+ * the PS1 buffer, so the headshot is composed at a true 128x128 and then
+ * doubled: every source pixel becomes exactly 2x2 output pixels.
+ */
+const CAST_CROP = 128;
+/** Integer upscale from {@link CAST_CROP} to {@link CAST_PX}. */
+const CAST_SCALE = 2;
+
+/** Backdrop, matching the site's ink. The renderer has no alpha channel. */
+const CAST_BG = 0x0a0f18;
+
+/**
+ * Per-character framing tweaks, merged over the defaults in
+ * {@link renderHeadshot}. `fill` is the fraction of the square crop the head's
+ * bounding box should span, `lift` raises the camera above the head's centre in
+ * metres, and `yaw` turns the character (radians, + = their left toward us).
+ *
+ * ROOP's hood swallows the top of his head box, so he is framed a shade looser;
+ * TUESDAY is a dog whose bounding box is mostly ear.
+ * @type {Object<string, {fill?:number, lift?:number, yaw?:number}>}
+ */
+const CAST_FRAMING = {
+  roop: { fill: 0.80 },
+  tuesday: { fill: 0.78, lift: 0.02 },
+};
+
+/**
+ * The harness page. Served straight out of memory by a Playwright route on the
+ * dev origin, so module specifiers resolve against the real site and nothing is
+ * ever written into the repo.
+ */
+const CAST_HARNESS = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>cast headshots</title>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+<style>html,body{margin:0;background:#05070c}canvas{display:block}</style>
+</head><body></body></html>`;
+
+/**
+ * The one module the harness loads: it pulls the real engine and the real cast
+ * registry in through the import map and parks them on `window` so the plain
+ * functions below (which Playwright ships over as source text, and which
+ * therefore cannot have imports of their own) can use them.
+ */
+const CAST_BOOT = `
+import * as THREE from 'three';
+import { createStage } from '/js/core/engine.js';
+import { loadCast, spawn } from '/js/characters/index.js';
+window.__ohCast = { THREE, createStage, loadCast, spawn };
+window.__ohCastReady = true;
+`;
+
+/**
+ * Renders one character's head into the harness canvas and hands back a PNG
+ * data URL of the square crop. Runs INSIDE the browser.
+ *
+ * The rig is not self-driving: `actor.update(dt, t)` has to be called every
+ * frame from the stage's update bus or the character never leaves its rest pose
+ * and the idle animation never settles. The camera is re-aimed on the same bus,
+ * after the actor has moved, so the head stays centred while it breathes.
+ *
+ * @param {Object} o
+ * @returns {Promise<{ok:boolean, reason?:string, data?:string, mean?:number, stdDev?:number, frames?:number, dist?:number, head?:string}>}
+ */
+async function renderHeadshot(o) {
+  const api = window.__ohCast;
+  if (!api) return { ok: false, reason: 'the harness module never loaded' };
+  const { THREE, createStage, loadCast, spawn } = api;
+
+  const canvas = document.createElement('canvas');
+  document.body.appendChild(canvas);
+
+  /** @type {any} */
+  let stage = null;
+  try {
+    stage = createStage(canvas);
+    // No fog and no distance haze: this is a portrait, not a room.
+    stage.scene.fog = null;
+    stage.scene.background = new THREE.Color(o.bg);
+    stage.renderer.setClearColor(o.bg, 1);
+    // An exact multiple of the 384x216 buffer, so the crop lands on whole pixels.
+    stage.pipeline.setDisplaySize(384 * o.scale, 216 * o.scale);
+
+    await loadCast([o.id]);
+    const actor = spawn(o.id);
+    const root = actor.group || actor.root || actor;
+    if (!root) return { ok: false, reason: `spawn('${o.id}') returned nothing to add` };
+    root.rotation.y = o.yaw || 0;
+    stage.scene.add(root);
+
+    // Without light every PS1 material renders black.
+    stage.scene.add(new THREE.AmbientLight(0xdde6f5, 0.58));
+    const key = new THREE.PointLight(0xfff0d6, 1.45, 0);
+    const fill = new THREE.PointLight(0x9ab8ff, 0.55, 0);
+    stage.scene.add(key);
+    stage.scene.add(fill);
+
+    if (typeof actor.lookAt === 'function') actor.lookAt(null);
+    if (typeof actor.play === 'function') actor.play('idle');
+
+    let frames = 0;
+    stage.onUpdate((dt, t) => { if (typeof actor.update === 'function') actor.update(dt, t); });
+
+    const box = new THREE.Box3();
+    const size = new THREE.Vector3();
+    const centre = new THREE.Vector3();
+    let dist = 1.15;
+    let note = 'head';
+
+    // Half-angle of the square crop: the camera's vertical fov, scaled down by
+    // the slice of the 216-line frame we keep.
+    const tanHalf = (o.crop / 216) * Math.tan((stage.camera.fov * Math.PI) / 360);
+
+    const aim = () => {
+      root.updateMatrixWorld(true);
+      const head = actor.head || null;
+      box.makeEmpty();
+      if (head) box.setFromObject(head);
+      if (box.isEmpty() || !isFinite(box.min.y)) {
+        // No head joint: fall back to the top of the whole rig.
+        box.setFromObject(root);
+        const top = box.max.y;
+        box.min.set(box.min.x, top - 0.40, box.min.z);
+        note = 'rig top (no head joint)';
+      }
+      box.getSize(size);
+      box.getCenter(centre);
+      const span = Math.max(size.x, size.y);
+      dist = (span * 0.5) / o.fill / tanHalf + size.z * 0.5;
+      const eye = centre.y + o.lift;
+      stage.camera.position.set(centre.x, eye, centre.z + dist);
+      stage.camera.lookAt(centre.x, centre.y, centre.z);
+      key.position.set(centre.x + dist * 0.8, eye + dist * 0.75, centre.z + dist * 0.9);
+      fill.position.set(centre.x - dist * 0.95, eye + dist * 0.1, centre.z + dist * 0.7);
+    };
+    aim();
+    stage.onUpdate(() => { frames++; aim(); });
+
+    await new Promise((resolve) => {
+      const t0 = performance.now();
+      stage.start();
+      const tick = () => {
+        if (frames >= o.frames && performance.now() - t0 >= o.settleMs) { resolve(); return; }
+        if (performance.now() - t0 > 8000) { resolve(); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    stage.stop();
+
+    // Crop the middle of the frame and blow it up with smoothing off, which at
+    // an integer factor is a pure pixel double.
+    const side = o.crop * o.scale;
+    const out = document.createElement('canvas');
+    out.width = o.px;
+    out.height = o.px;
+    const g = out.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingEnabled = false;
+    g.webkitImageSmoothingEnabled = false;
+    g.drawImage(
+      canvas,
+      Math.round((canvas.width - side) / 2), Math.round((canvas.height - side) / 2), side, side,
+      0, 0, o.px, o.px,
+    );
+
+    const px = g.getImageData(0, 0, o.px, o.px).data;
+    let mean = 0;
+    let sq = 0;
+    const n = o.px * o.px;
+    for (let i = 0; i < n; i += 3) {
+      const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+      mean += l;
+      sq += l * l;
+    }
+    const count = Math.ceil(n / 3);
+    mean /= count;
+
+    return {
+      ok: true,
+      data: out.toDataURL('image/png'),
+      mean: Math.round(mean * 10) / 10,
+      stdDev: Math.round(Math.sqrt(Math.max(0, sq / count - mean * mean)) * 100) / 100,
+      frames,
+      dist: Math.round(dist * 1000) / 1000,
+      head: note,
+    };
+  } catch (err) {
+    return { ok: false, reason: String((err && err.message) || err) };
+  } finally {
+    try { if (stage) stage.dispose(); } catch { /* the context is going away anyway */ }
+    try { canvas.remove(); } catch { /* ditto */ }
+  }
+}
+
+/**
+ * Shoots the six cast headshots into `assets/cast/<id>.png`.
+ *
+ * Each one is a REAL render of that character's rig — the same modules the
+ * episodes build their cast from — framed on the head, lit with an ambient and
+ * a point light, and cropped to a square out of the 384x216 PS1 buffer.
+ *
+ * ROOP is meant to be half-hidden under his hood and TUESDAY is meant to be a
+ * dog; neither is a framing bug.
+ *
+ * @param {Object} ctx
+ * @param {string[]} ids
+ * @returns {Promise<Array<{id:string, ok:boolean, file?:string, note:string}>>}
+ */
+async function shootCast(ctx, ids) {
+  const url = `${ctx.base}/__oh-cast-harness__.html`;
+  const page = await ctx.browser.newPage({ viewport: { width: 900, height: 600 } });
+  /** @type {string[]} */
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(String((e && e.message) || e)));
+  page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
+
+  /** @type {Array<{id:string, ok:boolean, file?:string, note:string}>} */
+  const results = [];
+  try {
+    // The harness never touches the disk: it is fulfilled from memory on the
+    // dev origin, so `/js/...` and the import map still resolve normally.
+    await page.route(url, (route) => route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: CAST_HARNESS,
+    }));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: ctx.wait });
+    await page.addScriptTag({ type: 'module', content: CAST_BOOT });
+    await page.waitForFunction(() => window.__ohCastReady === true, null, { timeout: ctx.wait });
+
+    const dir = ctx.out;
+    await fsp.mkdir(dir, { recursive: true });
+
+    for (const id of ids) {
+      const before = problems.length;
+      const opts = Object.assign({
+        id,
+        px: CAST_PX,
+        crop: CAST_CROP,
+        scale: CAST_SCALE,
+        bg: CAST_BG,
+        fill: 0.86,
+        lift: 0.03,
+        yaw: 0,
+        frames: 40,
+        settleMs: 900,
+      }, CAST_FRAMING[id] || {});
+
+      const shot = await page.evaluate(renderHeadshot, opts).catch((err) => ({
+        ok: false, reason: String((err && err.message) || err),
+      }));
+      const late = problems.slice(before);
+
+      if (!shot || !shot.ok) {
+        results.push({ id, ok: false, note: `${(shot && shot.reason) || 'nothing came back'}${late.length ? ` — ${late[0]}` : ''}` });
+        continue;
+      }
+      if (shot.stdDev < 1.5) {
+        results.push({ id, ok: false, note: `the frame is blank (stdDev ${shot.stdDev}, mean ${shot.mean}) — the rig probably never lit` });
+        continue;
+      }
+
+      const file = path.join(dir, `${id}.png`);
+      await fsp.writeFile(file, Buffer.from(shot.data.split(',')[1], 'base64'));
+      results.push({
+        id,
+        ok: true,
+        file,
+        note: `${CAST_PX}x${CAST_PX} from a ${CAST_CROP}px crop, ${shot.frames} frames, `
+          + `camera ${shot.dist}m off the ${shot.head}, stdDev ${shot.stdDev}`
+          + `${late.length ? ` (${late.length} console problem(s))` : ''}`,
+      });
+    }
+  } catch (err) {
+    results.push({ id: 'cast', ok: false, note: String((err && err.message) || err) });
+  } finally {
+    await page.close().catch(() => {});
+  }
+  return results;
+}
+
 /**
  * @param {string[]} [argv=process.argv.slice(2)]
  * @returns {Promise<number>} process exit code
  */
 export async function main(argv = process.argv.slice(2)) {
   const ids = [];
+  const castIds = [];
   let wantBrand = false;
+  let wantCast = false;
   let width = DEFAULT_WIDTH;
   let wait = 12000;
   let out = path.join(ROOT, 'assets', 'thumbs');
+  let outSet = false;
 
   for (const a of argv) {
     if (a.startsWith('--width=')) width = Math.max(384, Number(a.slice(8)) || DEFAULT_WIDTH);
     else if (a.startsWith('--wait=')) wait = Math.max(500, Number(a.slice(7)) || 12000);
-    else if (a.startsWith('--out=')) out = path.resolve(a.slice(6));
+    else if (a.startsWith('--out=')) { out = path.resolve(a.slice(6)); outSet = true; }
     else if (a === '-h' || a === '--help') {
-      console.log('node tools/shoot.mjs [ep1 ep2 ... | brand] [--width=1152] [--wait=12000] [--out=DIR]');
+      console.log('node tools/shoot.mjs [ep1 ep2 ... | brand | cast [brad dez ...]] [--width=1152] [--wait=12000] [--out=DIR]');
       return 0;
     } else if (a === 'brand') wantBrand = true;
+    else if (a === 'cast') wantCast = true;
     else if (/^ep\d+$/.test(a)) ids.push(a);
+    else if (CAST_IDS.includes(a)) { wantCast = true; castIds.push(a); }
     else console.log(`(ignoring unknown argument ${a})`);
   }
 
   const episodes = ids.length ? ids : EPISODE_IDS;
-  console.log(wantBrand
-    ? `OFFICE HOURS VII — brand plate -> ${path.join(ROOT, 'assets')}`
-    : `OFFICE HOURS VII — thumbnails -> ${out}`);
+  const cast = castIds.length ? castIds : CAST_IDS;
+  if (wantCast && !outSet) out = path.join(ROOT, 'assets', 'cast');
+  if (wantCast) console.log(`OFFICE HOURS VII — cast headshots -> ${out}`);
+  else if (wantBrand) console.log(`OFFICE HOURS VII — brand plate -> ${path.join(ROOT, 'assets')}`);
+  else console.log(`OFFICE HOURS VII — thumbnails -> ${out}`);
 
   const server = await start({ port: 0 });
   let browser;
@@ -301,7 +601,8 @@ export async function main(argv = process.argv.slice(2)) {
   const ctx = { browser, base: server.url, width, wait, out };
   const results = [];
   try {
-    if (wantBrand) results.push(await shootBrand(ctx));
+    if (wantCast) results.push(...await shootCast(ctx, cast));
+    else if (wantBrand) results.push(await shootBrand(ctx));
     else for (const id of episodes) results.push(await shoot(ctx, id));
   } finally {
     await browser.close().catch(() => {});

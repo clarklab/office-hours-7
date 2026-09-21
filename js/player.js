@@ -264,10 +264,27 @@ export function initPlayer() {
   /** @type {string} */
   let state = S.IDLE;
 
+  /**
+   * Screen Wake Lock, held only while an episode is actually playing.
+   *
+   * Declared HERE, above `setState`, and not further down with the rest of the
+   * wake-lock code: `setState(S.IDLE)` runs during module evaluation a few lines
+   * below and calls `syncWakeLock()`, which reads these. A `let` declared later
+   * in the same scope would still be in its temporal dead zone at that point and
+   * would throw. That exact mistake already shipped once here, on the speed
+   * control, and made the control silently inert.
+   *
+   * @type {{release:() => Promise<void>}|null}
+   */
+  let wakeLock = null;
+  /** Guards against two overlapping requests producing two locks. */
+  let wakeLockPending = false;
+
   /** Sets the player state and mirrors it onto `window.__OH_STATE` for the harness. */
   const setState = (next) => {
     state = next;
     window.__OH_STATE = next;
+    syncWakeLock();
   };
   setState(S.IDLE);
   /** @type {import('/js/core/engine.js').Stage|null} */
@@ -449,6 +466,7 @@ export function initPlayer() {
   function teardown() {
     token++;
     finished = false;
+    releaseWakeLock();
     stopProgress();
     if (hideTimer) clearTimeout(hideTimer);
     hideTimer = 0;
@@ -771,6 +789,74 @@ export function initPlayer() {
     if (faster) faster.disabled = i >= SPEEDS.length - 1;
     const group = $('speedbar');
     if (group) group.setAttribute('aria-valuetext', fmtSpeed(userSpeed));
+  }
+
+  /* ----------------------------------------------------------- wake lock  */
+
+  /**
+   * An episode is a two-minute cutscene that nobody touches while it plays, so
+   * a phone will happily dim and lock the screen in the middle of it. The Screen
+   * Wake Lock API is the fix, held for exactly as long as playback lasts and no
+   * longer — a lock left on after the episode ends would sit there draining the
+   * battery on a page that is no longer doing anything.
+   *
+   * @returns {boolean}
+   */
+  function wakeLockSupported() {
+    return typeof navigator !== 'undefined'
+      && !!navigator.wakeLock
+      && typeof navigator.wakeLock.request === 'function';
+  }
+
+  /**
+   * Takes the lock, if playback is running and the page is actually on screen.
+   *
+   * The request rejects freely and legitimately — a background tab, a
+   * Permissions-Policy that forbids it, or a device low enough on battery that
+   * the OS declines. None of those are errors worth interrupting playback for,
+   * so they are logged and shrugged off.
+   *
+   * @returns {Promise<void>}
+   */
+  async function acquireWakeLock() {
+    if (!wakeLockSupported() || wakeLock || wakeLockPending) return;
+    if (state !== S.PLAYING) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+    wakeLockPending = true;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      // Awaiting means the world may have moved on: the viewer can have hit
+      // Back, or tabbed away, while the request was in flight. Do not keep a
+      // lock for an episode that is no longer playing.
+      if (state !== S.PLAYING || document.visibilityState !== 'visible') {
+        attempt(() => lock.release());
+        return;
+      }
+      wakeLock = lock;
+      // The OS drops the lock on its own when the page is hidden; this keeps our
+      // handle honest so the visibility handler knows to ask for a new one.
+      attempt(() => lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      }));
+    } catch (err) {
+      warn('wakeLock', err);
+    } finally {
+      wakeLockPending = false;
+    }
+  }
+
+  /** Drops the lock if we hold one. Safe to call when we do not. */
+  function releaseWakeLock() {
+    const lock = wakeLock;
+    wakeLock = null;
+    if (lock) attempt(() => lock.release());
+  }
+
+  /** Holds the lock exactly while the state is PLAYING. Called from setState. */
+  function syncWakeLock() {
+    if (state === S.PLAYING) acquireWakeLock();
+    else releaseWakeLock();
   }
 
   /* ---------------------------------------------------------------- mute  */
@@ -1113,6 +1199,13 @@ export function initPlayer() {
   });
 
   // Navigating away must not leak a GL context or leave a script running.
+  // The OS releases a wake lock whenever the document is hidden, and does not
+  // hand it back on return — so an episode left running in a background tab
+  // would come back without one. Re-take it when the page is visible again.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncWakeLock();
+  });
+
   window.addEventListener('pagehide', teardown);
   window.addEventListener('beforeunload', teardown);
 

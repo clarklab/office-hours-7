@@ -2,8 +2,10 @@
  * OFFICE HOURS VII — the landing page.
  *
  * Builds the hero (the real logo canvas, redrawn on resize), the three episode cards,
- * the cast strip and the favicon. Deliberately 2D-only: nothing in this module's import
- * graph reaches three.js, so the gallery stays a fast text-and-canvas document.
+ * the cast strip and the favicon. Deliberately 2D-only: nothing in this module's static
+ * import graph reaches three.js, so the gallery stays a fast text-and-canvas document.
+ * The one exception is opt-in and late: once the page has loaded, the hero plate is
+ * swapped for a live render via a dynamic import of /js/brand/hero3d.js.
  *
  * @module gallery
  */
@@ -497,8 +499,10 @@ export function mountHero(slot) {
   let heroPlate = null;
   if (!slot) return () => {};
   let lastW = -1;
-  /** @type {HTMLCanvasElement|null} */
+  /** @type {HTMLCanvasElement|HTMLImageElement|null} whatever is in the slot now */
   let canvas = null;
+  /** @type {{canvas:HTMLCanvasElement, resize:(w:number)=>void, dispose:()=>void}|null} */
+  let live = null;
 
   const draw = (force) => {
     const avail = Math.round(slot.clientWidth || HERO_MAX);
@@ -509,6 +513,11 @@ export function mountHero(slot) {
     if (!force && Math.abs(w - lastW) < 2 && canvas) return;
     lastW = w;
     const h = Math.round(w * 0.70);
+    if (live) {
+      live.resize(w);
+      slot.style.minHeight = `${h}px`;
+      return;
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
     const next = document.createElement('canvas');
@@ -547,11 +556,57 @@ export function mountHero(slot) {
 
   draw();
   const onResize = raf1(draw);
+
+  // Progressive enhancement: once the page has settled, swap the plate for the
+  // same shot rendered live (js/brand/hero3d.js), with a drifting camera and
+  // pointer / device tilt. Dynamic import only, so nothing above reaches three
+  // unless the browser can actually run it. Any failure leaves the plate.
+  let stopped = false;
+  const goLive = async () => {
+    if (stopped || live) return;
+    try {
+      const conn = /** @type {any} */ (navigator).connection;
+      if (conn && conn.saveData) return;
+      const mod = await import('/js/brand/hero3d.js');
+      if (stopped || !mod.hasWebGL2()) return;
+      const w = Math.max(240, Math.min(HERO_MAX, Math.round(slot.clientWidth || HERO_MAX)));
+      const made = await mod.createLiveHero({
+        width: w,
+        gestureHost: slot.closest('.hero') || slot,
+        onLost: () => {
+          // Context gone: put the plate (or the drawing) back.
+          live = null;
+          if (canvas) canvas.remove();
+          canvas = null;
+          lastW = -1;
+          draw(true);
+        },
+      });
+      if (stopped) { made.dispose(); return; }
+      live = made;
+      if (canvas) canvas.replaceWith(live.canvas);
+      else slot.appendChild(live.canvas);
+      canvas = live.canvas;
+      lastW = -1;
+      draw(true);
+    } catch (err) {
+      console.warn('[OFFICE HOURS] live hero unavailable, keeping the plate', err);
+    }
+  };
+  const whenIdle = () => {
+    const ric = /** @type {any} */ (window).requestIdleCallback;
+    if (typeof ric === 'function') ric(goLive, { timeout: 1500 });
+    else setTimeout(goLive, 200);
+  };
+  if (document.readyState === 'complete') whenIdle();
+  else window.addEventListener('load', whenIdle, { once: true });
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : null;
   if (ro) ro.observe(slot);
   else window.addEventListener('resize', onResize);
 
   return () => {
+    stopped = true;
+    if (live) { live.dispose(); live = null; }
     if (ro) ro.disconnect();
     else window.removeEventListener('resize', onResize);
   };

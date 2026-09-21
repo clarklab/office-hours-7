@@ -24,7 +24,10 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "SAMEORIGIN"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+    # accelerometer and gyroscope are allowed for this origin only: the home page's
+    # live hero tilts with the phone (deviceorientation), and Chromium withholds
+    # those events entirely when either feature is disabled by policy.
+    Permissions-Policy = "accelerometer=(self), camera=(), geolocation=(), gyroscope=(self), magnetometer=(), microphone=(), payment=(), usb=()"
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Resource-Policy = "same-origin"
     # Everything is first-party and procedural, so this can be tight. The one inline

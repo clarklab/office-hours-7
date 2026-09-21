@@ -3,10 +3,13 @@
  *
  * Two independent jobs on the landing page, both of which must fail quietly:
  *
- * 1. The submission form. `/api/generate` is a Netlify **background** function, so
- *    it answers with an empty 202 and cannot hand an id back. The client therefore
- *    mints the id itself (same shape the backend validates, `/^u_[a-z0-9]{6,12}$/`)
- *    and polls `/api/job?id=` until the job reaches a terminal state.
+ * 1. The submission form. It posts to `/api/submit`, a SYNCHRONOUS function that
+ *    checks the daily allowance and takes a slot before any generation starts, so
+ *    an out-of-allowance viewer gets an immediate 429 instead of a loader. On a
+ *    202 it hands back the job id, which is polled at `/api/job?id=` until the job
+ *    reaches a terminal state. Next to the button, `/api/quota` drives a small
+ *    "N prompts left today" meter; the name only picks the allowance, and the
+ *    server decides what it is.
  * 2. The "Made by viewers" strip, from `/api/recent`. Empty or broken means the
  *    whole section hides itself — an empty box or an error panel on the landing
  *    page is worse than no section at all.
@@ -23,7 +26,7 @@
  * contract
  * ------------------------------------------------------------------ */
 
-/** The id shape the backend accepts. Minted here; validated there. */
+/** The id shape the backend accepts: job ids (minted server-side) and device ids (minted here). */
 const ID_RE = /^u_[a-z0-9]{6,12}$/;
 
 /** How often the job is polled, in ms. */
@@ -35,9 +38,16 @@ const GIVE_UP_MS = 4 * 60 * 1000;
 /** Longest prompt the backend will read. Mirrored by the textarea's maxlength. */
 const MAX_PROMPT = 500;
 
+/** Longest name the backend keeps. Mirrored by the input's maxlength. */
+const MAX_NAME = 40;
+
+/** How long to wait after the last keystroke in the name before asking for the allowance. */
+const QUOTA_DEBOUNCE_MS = 450;
+
 /** localStorage keys. */
 const DEVICE_KEY = 'oh7:device';
 const JOB_KEY = 'oh7:job';
+const NAME_KEY = 'oh7:name';
 
 /* ------------------------------------------------------------------ *
  * storage — every access wrapped, on purpose
@@ -149,6 +159,32 @@ function clock(seconds) {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 }
 
+/**
+ * The name as the server will see it: whitespace collapsed, trimmed, capped.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+function cleanName(raw) {
+  return String(raw || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME).trim();
+}
+
+/**
+ * A UTC instant as a local wall-clock time, e.g. `7:00 PM`. Empty if unusable.
+ *
+ * @param {string} iso
+ * @returns {string}
+ */
+function localTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
 /** @param {string} id @returns {string} the player URL for a viewer episode */
 function watchHref(id) {
   return `/watch.html?ep=${encodeURIComponent(id)}`;
@@ -172,7 +208,26 @@ export function initForm(hooks = {}) {
   const errorLine = document.getElementById('make-error');
   const status = document.getElementById('make-status');
   const button = /** @type {HTMLButtonElement|null} */ (document.getElementById('make-go'));
+  const nameInput = /** @type {HTMLInputElement|null} */ (document.getElementById('make-name'));
+  const nameError = document.getElementById('make-name-error');
+  const meter = document.getElementById('make-quota');
+  const pips = document.getElementById('make-pips');
+  const meterText = document.getElementById('make-quota-text');
   if (!form || !input || !status || !button) return () => {};
+
+  /** Whether a job is in flight. */
+  let busy = false;
+  /**
+   * The last allowance the server reported, or null if it has not said (or
+   * cannot — `tools/serve.mjs` has no functions, and the form must still work).
+   *
+   * @type {{limit:number, remaining:number, resetsAt:string}|null}
+   */
+  let allowance = null;
+  /** Bumped per quota request, so a slow reply cannot overwrite a newer one. */
+  let quotaSeq = 0;
+  /** @type {number} */
+  let quotaTimer = 0;
 
   /** The poll loop currently running, if any. Cancelled by bumping the token. */
   let runToken = 0;
@@ -227,12 +282,131 @@ export function initForm(hooks = {}) {
 
   /* --- the panel --------------------------------------------------- */
 
-  /** @param {boolean} busy */
-  const setBusy = (busy) => {
-    button.disabled = busy;
-    input.readOnly = busy;
-    form.classList.toggle('is-busy', busy);
+  /** The button is off while a job runs, and when the allowance is spent. */
+  const syncButton = () => {
+    button.disabled = busy || Boolean(allowance && allowance.remaining <= 0);
   };
+
+  /** @param {boolean} on */
+  const setBusy = (on) => {
+    busy = on;
+    input.readOnly = on;
+    if (nameInput) nameInput.readOnly = on;
+    form.classList.toggle('is-busy', on);
+    syncButton();
+  };
+
+  /* --- the allowance meter ----------------------------------------- */
+
+  /** @param {{limit:number, remaining:number, resetsAt:string}|null} q */
+  const renderQuota = (q) => {
+    allowance = q;
+    syncButton();
+    if (!meter || !pips || !meterText) return;
+    if (!q) {
+      meter.hidden = true;
+      return;
+    }
+    const limit = Math.max(0, Math.min(50, Math.round(q.limit)));
+    const left = Math.max(0, Math.min(limit, Math.round(q.remaining)));
+
+    pips.textContent = '';
+    pips.classList.toggle('is-many', limit > 6);
+    for (let i = 0; i < limit; i++) pips.appendChild(el('span', i < left ? 'make-pip is-on' : 'make-pip', null));
+
+    meterText.textContent = '';
+    if (left > 0) {
+      meterText.appendChild(document.createTextNode(`${left} prompt${left === 1 ? '' : 's'} left today`));
+    } else {
+      meterText.appendChild(document.createTextNode('No prompts left today'));
+      const at = localTime(q.resetsAt);
+      meterText.appendChild(el('small', null, at ? `Back at ${at}, your time` : 'Back at midnight UTC'));
+    }
+    meter.classList.toggle('is-last', left === 1);
+    meter.classList.toggle('is-out', left === 0);
+    meter.setAttribute('aria-label', left > 0
+      ? `${left} of ${limit} prompts left today`
+      : 'No prompts left today');
+    meter.hidden = false;
+  };
+
+  /**
+   * @param {*} data a response body that may carry the allowance
+   * @returns {{limit:number, remaining:number, resetsAt:string}|null}
+   */
+  const readAllowance = (data) => {
+    if (!data || !Number.isFinite(data.limit) || !Number.isFinite(data.remaining)) return null;
+    return { limit: data.limit, remaining: data.remaining, resetsAt: String(data.resetsAt || '') };
+  };
+
+  /** Asks the server how many are left for this device and name. Never throws. */
+  const refreshQuota = async () => {
+    quotaSeq += 1;
+    const mine = quotaSeq;
+    /** @type {*} */
+    let q = null;
+    try {
+      const res = await fetch('/api/quota', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ deviceId: deviceId(), name: cleanName(nameInput ? nameInput.value : '') }),
+      });
+      if (res.ok) q = readAllowance(await res.json());
+      else await res.text().catch(() => '');
+    } catch {
+      q = null;
+    }
+    if (mine !== quotaSeq) return;
+    renderQuota(q);
+  };
+
+  const refreshQuotaSoon = () => {
+    if (quotaTimer) clearTimeout(quotaTimer);
+    quotaTimer = setTimeout(() => { quotaTimer = 0; refreshQuota(); }, QUOTA_DEBOUNCE_MS);
+  };
+
+  /* --- the name ------------------------------------------------------ */
+
+  /** @param {string} msg */
+  const showNameError = (msg) => {
+    if (!nameInput || !nameError) return;
+    nameError.textContent = msg;
+    nameError.hidden = false;
+    nameInput.setAttribute('aria-invalid', 'true');
+    nameInput.setAttribute('aria-describedby', 'make-name-error');
+  };
+
+  const clearNameError = () => {
+    if (!nameInput || !nameError) return;
+    nameError.textContent = '';
+    nameError.hidden = true;
+    nameInput.removeAttribute('aria-invalid');
+    nameInput.removeAttribute('aria-describedby');
+  };
+
+  if (nameInput) {
+    const saved = readStore(NAME_KEY);
+    if (saved && !nameInput.value) nameInput.value = cleanName(saved);
+    nameInput.addEventListener('input', () => {
+      clearNameError();
+      refreshQuotaSoon();
+    });
+    nameInput.addEventListener('change', () => {
+      const clean = cleanName(nameInput.value);
+      if (clean) writeStore(NAME_KEY, clean);
+      if (quotaTimer) clearTimeout(quotaTimer);
+      quotaTimer = 0;
+      refreshQuota();
+    });
+  }
+
+  // A tab left open across midnight UTC should not keep saying "none left".
+  const onVisible = () => {
+    if (document.visibilityState === 'visible' && !busy) refreshQuota();
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  refreshQuota();
 
   const clearTimers = () => {
     if (tickTimer) clearInterval(tickTimer);
@@ -392,6 +566,7 @@ export function initForm(hooks = {}) {
     input.value = '';
     syncCount();
     link.focus();
+    refreshQuota();
     if (typeof hooks.onReady === 'function') hooks.onReady();
   };
 
@@ -404,6 +579,7 @@ export function initForm(hooks = {}) {
   const showRejected = (message) => {
     clearTimers();
     setBusy(false);
+    refreshQuota();
     panel('stop', [
       el('p', 'make-kicker', 'Not this time'),
       el('p', 'make-msg', message || 'That is enough episodes for today.'),
@@ -416,6 +592,8 @@ export function initForm(hooks = {}) {
   const showFailed = (message) => {
     clearTimers();
     setBusy(false);
+    // A failure on our side hands the slot back, so the meter may have gone up.
+    refreshQuota();
     const retry = el('button', 'make-again', 'Try again');
     retry.setAttribute('type', 'button');
     retry.id = 'make-retry';
@@ -459,14 +637,16 @@ export function initForm(hooks = {}) {
    *
    * @param {string} id
    * @param {number} startedAt epoch ms
+   * @param {{stage: (s: string) => void}} [existing] a loader already on screen
    */
-  const watchJob = (id, startedAt) => {
+  const watchJob = (id, startedAt, existing) => {
     runToken += 1;
     const mine = runToken;
-    clearTimers();
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = 0;
     setBusy(true);
 
-    const ui = loader(startedAt);
+    const ui = existing || loader(startedAt);
     const deadline = startedAt + GIVE_UP_MS;
 
     const step = async () => {
@@ -527,6 +707,14 @@ export function initForm(hooks = {}) {
     ev.preventDefault();
     if (button.disabled) return;
 
+    const name = cleanName(nameInput ? nameInput.value : '');
+    if (nameInput && !name) {
+      showNameError('Tell us who you are first — a first name is plenty.');
+      nameInput.focus();
+      return;
+    }
+    clearNameError();
+
     const prompt = input.value.trim().slice(0, MAX_PROMPT);
     if (!prompt) {
       showError('Give us one line first — anything that could go wrong will do.');
@@ -534,36 +722,67 @@ export function initForm(hooks = {}) {
       return;
     }
     clearError();
+    if (name) writeStore(NAME_KEY, name);
 
-    const id = mintId();
+    // Put the loader up before the request settles, so a slow network does not
+    // read as a dead button. The allowance is checked synchronously by the
+    // server, so a refusal replaces this within a round trip.
+    runToken += 1;
+    const mine = runToken;
     const startedAt = Date.now();
-    writeStore(JOB_KEY, JSON.stringify({ id, startedAt }));
+    clearTimers();
+    setBusy(true);
+    const ui = loader(startedAt);
+    ui.stage('Checking your allowance');
 
-    // Put the loader up before the request settles: a background function answers
-    // instantly, but a slow network should not read as a dead button.
-    watchJob(id, startedAt);
-
-    let sent = false;
+    /** @type {*} */
+    let data = null;
+    let code = 0;
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetch('/api/submit', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id, prompt, deviceId: deviceId() }),
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ prompt, name, deviceId: deviceId() }),
       });
-      sent = res.ok || res.status === 202;
-      // A background function answers 202 with nothing in it. Draining the body
-      // anyway closes the stream then and there — an unread response is cancelled
-      // later by the browser, which surfaces as a spurious net::ERR_ABORTED.
-      await res.text().catch(() => '');
+      code = res.status;
+      data = await res.json().catch(() => null);
     } catch {
-      sent = false;
+      code = 0;
     }
+    if (mine !== runToken) return;
 
-    if (!sent) {
-      runToken += 1;
-      dropStore(JOB_KEY);
-      showFailed('We could not reach the office. Check your connection and try again.');
+    const q = readAllowance(data);
+    if (q) renderQuota(q);
+    const message = String((data && data.error) || '');
+
+    if (code === 202 && data && ID_RE.test(String(data.id || ''))) {
+      writeStore(JOB_KEY, JSON.stringify({ id: data.id, startedAt }));
+      watchJob(data.id, startedAt, ui);
+      return;
     }
+    if (code === 429) {
+      showRejected(message);
+      return;
+    }
+    if (code === 400 && data && data.field === 'name') {
+      clearTimers();
+      setBusy(false);
+      hidePanel();
+      showNameError(message || 'Tell us who you are first.');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+    if (code === 400) {
+      clearTimers();
+      setBusy(false);
+      hidePanel();
+      showError(message || 'Give us a little more than that.');
+      input.focus();
+      return;
+    }
+    showFailed(code === 0
+      ? 'We could not reach the office. Check your connection and try again.'
+      : (message || 'The office could not take that just now. Try again in a minute.'));
   });
 
   // A textarea swallows Enter, which is correct — so give the keyboard the usual
@@ -595,6 +814,8 @@ export function initForm(hooks = {}) {
   return () => {
     runToken += 1;
     clearTimers();
+    if (quotaTimer) clearTimeout(quotaTimer);
+    document.removeEventListener('visibilitychange', onVisible);
   };
 }
 

@@ -951,11 +951,92 @@ button {
 
 .make-go:disabled { opacity: 0.4; cursor: default; }
 
+/* --- name ---------------------------------------------------------- */
+
+.make-name {
+  resize: none;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.make-name + .make-error { margin-top: -4px; }
+.make-name + .make-error + .make-label { margin-top: 6px; }
+
+/* --- allowance meter ------------------------------------------------ *
+ * One pip per episode in today's allowance: lit = still yours, dark = spent.
+ * Same square, hard-edged language as the loader bar — no rounded corners on
+ * a PS1 menu.
+ */
+
+.make-side {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.make-quota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.make-quota[hidden] { display: none; }
+
+.make-pips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 11.5rem;
+}
+
+.make-pip {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--oh-silver-lo);
+  background: var(--oh-black);
+}
+
+/* A big allowance gets smaller pips, so fifteen still sit beside the button. */
+.make-pips.is-many { gap: 2px; max-width: 8rem; }
+.make-pips.is-many .make-pip { width: 6px; height: 6px; }
+
+.make-pip.is-on {
+  border-color: var(--oh-ep1);
+  background: var(--oh-ep1);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--oh-ep1) 55%, transparent);
+}
+
+.make-quota-text {
+  color: var(--oh-silver-hi);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.make-quota-text small {
+  display: block;
+  margin-top: 2px;
+  color: var(--oh-silver-lo);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: var(--track-mid);
+}
+
+.make-quota.is-last .make-quota-text { color: var(--oh-ep2); }
+.make-quota.is-out .make-quota-text { color: #e8544d; }
+.make-quota.is-out .make-pip { border-color: color-mix(in srgb, #e8544d 50%, transparent); }
+
 /* Below this the button and the counter stop fitting on one line together. */
 @media (max-width: 520px) {
   .make-row { flex-direction: column-reverse; align-items: stretch; }
   .make-go { justify-content: center; }
   .make-count { text-align: right; }
+  .make-side { align-items: stretch; }
 }
 
 /* --- the status panel: waiting, ready, or stopped -------------------- */

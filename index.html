@@ -155,6 +155,12 @@
         </div>
 
         <form class="make-form" id="make-form" novalidate>
+          <label class="make-label" for="make-name">Your name</label>
+          <input class="make-input make-name" id="make-name" name="name" type="text"
+                 maxlength="40" required autocomplete="nickname" spellcheck="false"
+                 placeholder="so the office knows who to thank">
+          <p class="make-error" id="make-name-error" hidden></p>
+
           <label class="make-label" for="make-idea">Your one-line idea</label>
           <textarea class="make-input" id="make-idea" name="idea" rows="3" maxlength="500"
                     required spellcheck="true" autocomplete="off"
@@ -173,7 +179,13 @@
 
           <p class="make-error" id="make-error" hidden></p>
           <div class="make-row">
-            <span class="make-count" id="make-count">0 / 500</span>
+            <div class="make-side">
+              <div class="make-quota" id="make-quota" aria-live="polite" hidden>
+                <span class="make-pips" id="make-pips" aria-hidden="true"></span>
+                <span class="make-quota-text" id="make-quota-text"></span>
+              </div>
+              <span class="make-count" id="make-count">0 / 500</span>
+            </div>
             <button class="make-go" id="make-go" type="submit">
               <span class="tri" aria-hidden="true">&#9654;</span>
               Make my episode

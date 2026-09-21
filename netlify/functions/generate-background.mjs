@@ -2,8 +2,13 @@
  * OFFICE HOURS VII — turns a viewer's prompt into a validated episode spec.
  *
  * A background function, because generation takes far longer than the ~10s a
- * synchronous one gets. Background functions answer with an empty 202, so the
- * CLIENT mints the job id and polls it; there is nothing to hand back here.
+ * synchronous one gets. Background functions answer with an empty 202 no matter
+ * what they return, so NOTHING here can refuse a viewer — the daily limit is
+ * checked and the slot taken up front, synchronously, by /api/submit
+ * (submit.mjs), which then calls this with nothing but a job id. The prompt
+ * comes from the private ticket submit.mjs wrote, and a ticket runs once: an
+ * id without one, or whose ticket is already claimed, does nothing. So a direct
+ * POST here cannot get round the limit.
  *
  * What comes out is a JSON spec, never JavaScript. A generated module stored
  * and executed on a public site is arbitrary code execution by anyone who can
@@ -16,7 +21,7 @@
 import { getStore } from '@netlify/blobs';
 import { validateSpec, estimateRuntime, STEP_TYPES } from '../../js/episodes/runtime.js';
 import {
-  EPISODE_STORE, JOB_STORE, checkRate, clientIp, setJob, json,
+  EPISODE_STORE, TICKET_STORE, refund, setJob, json,
 } from './_shared.mjs';
 
 export const config = {
@@ -26,7 +31,6 @@ export const config = {
 
 /** Sonnet: strong enough for a long constrained spec, fast enough to wait for. */
 const MODEL = 'claude-sonnet-4-5-20250929';
-const MAX_PROMPT = 500;
 
 /** @param {string} id @returns {boolean} */
 const validId = (id) => typeof id === 'string' && /^u_[a-z0-9]{6,12}$/.test(id);
@@ -169,8 +173,26 @@ function parseSpec(text) {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
+/**
+ * Claims a ticket so it runs exactly once, even if this function is invoked
+ * twice for the same id (a retry, or someone replaying the request).
+ *
+ * @param {string} id
+ * @returns {Promise<*|null>} the ticket, or null if there is none to run
+ */
+async function claimTicket(id) {
+  const store = getStore(TICKET_STORE, { consistency: 'strong' });
+  const rec = await store.getWithMetadata(id, { type: 'json' });
+  if (!rec || !rec.data || rec.data.claimed) return null;
+  const ticket = rec.data;
+  const res = await store.setJSON(id, { ...ticket, claimed: true, claimedAt: new Date().toISOString() },
+    rec.etag ? { onlyIfMatch: rec.etag } : undefined);
+  if (res && res.modified === false) return null;
+  return ticket;
+}
+
 /** @type {import('@netlify/functions').Handler} */
-export default async (req, context) => {
+export default async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
 
   let body;
@@ -180,29 +202,28 @@ export default async (req, context) => {
     return json(400, { error: 'bad JSON' });
   }
 
-  const id = String(body.id || '');
-  const prompt = String(body.prompt || '').trim().slice(0, MAX_PROMPT);
-  const deviceId = String(body.deviceId || '').slice(0, 64);
-
+  const id = String((body && body.id) || '');
   if (!validId(id)) return json(400, { error: 'bad id' });
-  if (prompt.length < 4) return json(400, { error: 'prompt too short' });
 
-  const jobs = getStore(JOB_STORE);
-  const existing = await jobs.get(id, { type: 'json' }).catch(() => null);
-  if (existing) return json(409, { error: 'id already used' });
+  const ticket = await claimTicket(id).catch(() => null);
+  // No ticket: not a submission that passed the limit, or already running.
+  if (!ticket) return json(404, { error: 'no such ticket' });
 
-  await setJob(id, { status: 'queued', stage: 'Checking your allowance' });
+  const prompt = String(ticket.prompt || '');
+  const name = String(ticket.name || '');
 
-  const rate = await checkRate(deviceId, clientIp(req, context));
-  if (!rate.ok) {
-    await setJob(id, { status: 'rejected', error: rate.reason });
-    return json(429, { error: rate.reason });
-  }
+  // Our failures hand the slot back; see refund() in _shared.mjs. A spec that
+  // comes back invalid after a repair round does NOT — the model was called,
+  // and a refund there would let one viewer loop bad prompts for free.
+  const ourFault = async (error, detail) => {
+    await refund(ticket.keys).catch(() => {});
+    await setJob(id, { status: 'failed', error, refunded: true, ...(detail ? { detail } : {}) });
+  };
 
   const key = process.env.ANTHROPIC_API_KEY;
   const base = process.env.ANTHROPIC_BASE_URL;
   if (!key || !base) {
-    await setJob(id, { status: 'failed', error: 'The generator is not configured.' });
+    await ourFault('The generator is not configured. That one did not count against your allowance.');
     return json(500, { error: 'gateway not configured' });
   }
 
@@ -274,16 +295,19 @@ export default async (req, context) => {
     // listing endpoint can build the gallery from one list() call instead of
     // fetching every episode to read its title.
     await getStore(EPISODE_STORE).setJSON(id, record, {
-      metadata: { title: spec.title, logline: spec.logline, createdAt: record.createdAt, seconds },
+      // `by` rides in the metadata only: /api/recent whitelists what it serves, so
+      // the submitter's name is stored with the episode without being published.
+      metadata: {
+        title: spec.title, logline: spec.logline, createdAt: record.createdAt, seconds, by: name,
+      },
     });
     await setJob(id, { status: 'ready', title: spec.title, seconds });
     return json(200, { ok: true });
   } catch (err) {
-    await setJob(id, {
-      status: 'failed',
-      error: 'The generator had a bad afternoon. Try again in a minute.',
-      detail: String((err && err.message) || err).slice(0, 300),
-    });
+    await ourFault(
+      'The generator had a bad afternoon. That one did not count — try again in a minute.',
+      String((err && err.message) || err).slice(0, 300),
+    );
     return json(200, { ok: false });
   }
 };

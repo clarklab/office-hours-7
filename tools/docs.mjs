@@ -219,7 +219,24 @@ export async function main(argv = process.argv.slice(2)) {
   }
   await fsp.mkdir(path.dirname(out), { recursive: true });
   await fsp.writeFile(out, page(v), 'utf8');
+
+  // The same vocabulary as data. The generator function validates a submitted
+  // spec against this, and cannot run a browser to read it live the way this
+  // tool does — so it is written here, from the one read, rather than kept as a
+  // second hand-maintained copy that would quietly drift out of step with the
+  // page telling the model what is allowed.
+  const snap = path.join(ROOT, 'js', 'episodes', 'vocab.json');
+  await fsp.writeFile(snap, `${JSON.stringify({
+    marks: v.marks,
+    shots: v.shots,
+    cast: v.cast,
+    anims: v.anims,
+    profiles: v.profiles,
+    generated: new Date().toISOString().slice(0, 10),
+  }, null, 2)}\n`, 'utf8');
+
   console.log(`OFFICE HOURS VII — docs -> ${out}`);
+  console.log(`                  vocab -> ${snap}`);
   console.log(`  ${v.marks.length} marks, ${v.shots.length} shots, ${v.cast.length} cast, ${v.verbs.length} verbs`);
   if (argv.includes('--print')) console.log(page(v));
   return 0;

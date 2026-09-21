@@ -40,11 +40,46 @@ function systemPrompt(v) {
     .map((id) => `  ${id} — ${v.profiles[id].fullName} (${v.profiles[id].role}); animations: ${v.anims[id].join(', ')}`)
     .join('\n');
 
-  return `You write episodes of OFFICE HOURS VII, a PS1-era 3D workplace comedy set at MULCH, Inc. — a startup with eleven days of money left. The tone is dry, deadpan and affectionate. Nobody is punching down; everybody is doing their best and it is not working.
+  return `You write episodes of OFFICE HOURS VII, a PS1-era 3D workplace comedy set at MULCH, Inc. — a startup with eleven days of money left. Dry, deadpan, affectionate. Nobody is punching down; everybody is doing their best and it is not working.
 
 You output ONE JSON object and nothing else. No markdown fence, no commentary.
 
-THE HARD RULE: use only what exists below. Do not invent a character, a location, a camera angle, an animation or a prop. Anything not on these lists is rejected outright and the viewer gets nothing.
+WHAT YOU ARE GIVEN: a single line. "Someone is stealing from the group fridge." "The printer is haunted." That is a premise, not a script — it is your job to develop it into two minutes. Do not ask for more. Do not restate it and stop. Build the episode the line implies.
+
+HOW TO DEVELOP ONE:
+Run the premise through these people and the episode writes itself. Ask: who noticed? who denies it? who makes it worse? who says what it costs?
+
+  BRAD   Founder. Reframes every problem as an opportunity and will not say a bad
+         word out loud. Answers a crisis with a whiteboard. Believes the team is
+         crushing it. Never admits the company is in trouble.
+  DEZ    Sales. Permanently mid-call, closing nobody. Treats every situation as a
+         deal to be worked. Sunglasses indoors. Enormous confidence, 4% close rate.
+  KIKI   Front of house. Sees everything from reception and is the only one who
+         actually knows what happened. Out of patience. Tangled in her headset cord.
+  ROOP   IT. Under a desk, hood up, 402 open tickets. Deflects, denies, and knows
+         more than he is saying. Answers a direct question with a different question.
+  MARGE  Finance. The only one holding real numbers, in one red ledger. Ramrod
+         straight. Says the actual cost out loud, flatly, and ends the argument.
+  TUESDAY An unauthorised dog. Does not speak. Present, unbothered, and usually the
+         closest thing to a resolution anyone gets.
+
+SHAPE THAT WORKS:
+  1. Cold open — the office, before anyone knows. One or two lines.
+  2. The discovery — somebody finds it. Usually Kiki, because Kiki sees everything.
+  3. Denial — Brad reframes it. Roop deflects. Nothing is resolved.
+  4. Escalation — it becomes a meeting it did not need to be.
+  5. The number — Marge says what it actually costs. Everyone goes quiet.
+  6. The button — a small, flat, deflating line. Not a moral, not a lesson.
+
+Worked example, "someone is stealing from the group fridge": Kiki has been labelling
+her lunch for three weeks. Brad calls it a sign of a high-trust culture. Dez tries to
+sell the thief a solution. Roop gets defensive about a sandwich nobody accused him of.
+Marge points out the fridge costs more to run than the food in it. Tuesday is under the
+table. Nobody finds the thief. Somebody labels a yoghurt.
+
+THE HARD RULE: use only what exists below. Do not invent a character, a location, a
+camera angle, an animation or a prop. Anything not on these lists is rejected outright
+and the viewer gets nothing back.
 
 CHARACTERS (use the id, not the name):
 ${castLines}
@@ -58,7 +93,7 @@ ${v.shots.join(', ')}
 SOUND: sfx = bark, fanfare, chime, thud, beep, error. music = lobby, chase, tension, victory, or null to stop.
 EMOTES: sweat, note, anger, idea, love, shock.
 
-SHAPE:
+OUTPUT SHAPE:
 {
   "title": "SHORT TITLE",          // uppercase, max 48 chars
   "logline": "One line, present tense.",
@@ -67,7 +102,7 @@ SHAPE:
 }
 
 STEP TYPES — ${STEP_TYPES.join(', ')}:
-  {"type":"title","subtitle":"A VIEWER EPISODE"}
+  {"type":"title","subtitle":"MADE BY A VIEWER"}
   {"type":"cut","shot":"bullpenWide"}
   {"type":"place","actor":"brad","mark":"whiteboard"}
   {"type":"walk","actor":"kiki","mark":"meetingRoom"}
@@ -85,10 +120,13 @@ STEP TYPES — ${STEP_TYPES.join(', ')}:
 CRAFT:
 - Open with a title step, then a cut, then place everyone who appears before they speak.
 - Cut to a new set-up every 3-6 lines. A scene on one camera goes dead.
-- Spoken lines are at most 84 characters. Short lines land harder.
+- Spoken lines are at most 84 characters. Short lines land harder than long ones.
 - Aim for 95-150 seconds. Roughly: each line costs 1.3s plus a second per 14 characters.
-- End on a button: a small, flat, deflating line. Not a moral.
-- Nobody says the company is doomed out loud. They talk about parking, or a chair.`;
+- Use three to five characters. All six in two minutes is a crowd, not a cast.
+- Nobody says the company is doomed out loud. They talk about parking, or a chair.
+- If the premise is rude, cruel or about a real person, write the MULCH version of it
+  instead: keep the shape, drop the target, aim it at the office. Never refuse — a
+  viewer typed one line and is waiting for something.`;
 }
 
 /**
@@ -180,7 +218,13 @@ export default async (req, context) => {
     const system = systemPrompt(vocab);
 
     await setJob(id, { status: 'working', stage: 'Writing the episode' });
-    const messages = [{ role: 'user', content: `Write an episode about: ${prompt}` }];
+    const messages = [{
+      role: 'user',
+      // Named as a premise, not a brief. What arrives is one line — "someone is
+      // stealing from the group fridge" — and the model has to develop it
+      // rather than transcribe it.
+      content: `Premise: ${prompt}\n\nDevelop this into a full episode.`,
+    }];
     let text = await callModel(key, base, system, messages);
     let spec;
     let check;

@@ -248,10 +248,21 @@ export function initForm(hooks = {}) {
    * @param {Node[]} kids
    */
   const panel = (kind, kids) => {
+    const wasHidden = status.hidden;
     status.className = `make-status is-${kind}`;
     status.textContent = '';
     for (const k of kids) status.appendChild(k);
     status.hidden = false;
+    // On a phone the form fills the screen and the panel opens below the fold,
+    // so pressing the button would look like nothing happened. Only on the way
+    // out of hidden: the stage updates that follow must not move the page.
+    if (wasHidden) {
+      try {
+        status.scrollIntoView({ block: 'nearest' });
+      } catch {
+        /* ancient scrollIntoView, no options object — not worth a fallback */
+      }
+    }
   };
 
   const hidePanel = () => {

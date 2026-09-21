@@ -291,6 +291,10 @@ export function initPlayer() {
   /** The rate everything scales by, read live so the control takes effect mid-line. */
   const rate = () => speed * userSpeed;
   let hideTimer = 0;
+  /** Double-tap bookkeeping for the frame: when and where the last tap landed. */
+  let lastTapAt = 0;
+  let lastTapX = 0;
+  let lastTapY = 0;
   let progressRaf = 0;
   let elapsedMs = 0;
   let finished = false;
@@ -786,6 +790,132 @@ export function initPlayer() {
     setStatus(!m ? 'Muted.' : 'Unmuted.');
   }
 
+  /* ----------------------------------------------------------- fullscreen */
+
+  /** ms inside which a second tap on the frame counts as a double-tap. */
+  const DOUBLE_TAP_MS = 350;
+  /** px a second tap may drift and still be the same double-tap. */
+  const DOUBLE_TAP_SLOP = 48;
+
+  /** The frame goes fullscreen, not the page, so the letterbox fills the screen. */
+  const fsTarget = () => frame || document.documentElement;
+
+  /**
+   * Whether this browser will put an *element* fullscreen at all. iPhone Safari
+   * exposes the document-side API but has no element request, so there is nothing
+   * to offer and the button is hidden rather than left there doing nothing.
+   *
+   * @returns {boolean}
+   */
+  function canFullscreen() {
+    const el = fsTarget();
+    if (!el) return false;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (typeof req !== 'function') return false;
+    const enabled = typeof document.fullscreenEnabled === 'boolean'
+      ? document.fullscreenEnabled
+      : document.webkitFullscreenEnabled;
+    return enabled !== false;
+  }
+
+  /** @returns {boolean} true while anything on this page is fullscreen */
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  /** Asks for fullscreen. The API rejects freely (no gesture, iframe policy, ...). */
+  function enterFullscreen() {
+    const el = fsTarget();
+    if (!el) return;
+    attempt(() => {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (typeof req !== 'function') return;
+      const p = req.call(el);
+      if (p && typeof p.catch === 'function') p.catch((err) => warn('fullscreen', err));
+    });
+  }
+
+  function leaveFullscreen() {
+    attempt(() => {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (typeof exit !== 'function') return;
+      const p = exit.call(document);
+      if (p && typeof p.catch === 'function') p.catch((err) => warn('exit fullscreen', err));
+    });
+  }
+
+  function toggleFullscreen() {
+    if (!canFullscreen()) return;
+    const on = isFullscreen();
+    if (on) leaveFullscreen();
+    else enterFullscreen();
+    // Nothing is announced or relabelled here: the request can be refused, and
+    // onFullscreenChange is what actually knows, Esc and all.
+  }
+
+  /**
+   * Every fullscreen toggle on the page. There are two: the one in the chrome bar,
+   * and the one on the title card, because the chrome bar is hidden until an
+   * episode is actually running.
+   *
+   * @returns {HTMLElement[]}
+   */
+  const fsButtons = () => Array.from(document.querySelectorAll('[data-oh-fullscreen]'));
+
+  function syncFullscreenButton() {
+    const supported = canFullscreen();
+    const on = isFullscreen();
+    for (const btn of fsButtons()) {
+      if (!supported) {
+        btn.hidden = true;
+        continue;
+      }
+      btn.hidden = false;
+      btn.textContent = on ? 'Exit full' : 'Fullscreen';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  /**
+   * Fullscreen changes the frame's box without a window resize (and Esc can leave
+   * it with nobody touching our button), so re-fit the canvas and re-label here.
+   */
+  function onFullscreenChange() {
+    syncFullscreenButton();
+    layout();
+    showChrome();
+    setStatus(isFullscreen() ? 'Fullscreen.' : 'Left fullscreen.');
+  }
+
+  /**
+   * Two taps on the frame inside DOUBLE_TAP_MS toggle fullscreen. This runs on
+   * `pointerup` and never calls preventDefault, so the dialogue layer's own
+   * pointerdown catcher still advances the line on a single tap; taps that start
+   * on a button or a link (Play, the chrome, the end card) are left alone.
+   *
+   * @param {PointerEvent} e
+   */
+  function onFramePointerUp(e) {
+    const t = /** @type {Element|null} */ (e.target);
+    if (t && typeof t.closest === 'function' && t.closest('button, a')) {
+      lastTapAt = 0;
+      return;
+    }
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    const now = performance.now();
+    const near = Math.abs(e.clientX - lastTapX) < DOUBLE_TAP_SLOP
+      && Math.abs(e.clientY - lastTapY) < DOUBLE_TAP_SLOP;
+    if (lastTapAt && now - lastTapAt <= DOUBLE_TAP_MS && near) {
+      lastTapAt = 0;
+      toggleFullscreen();
+      return;
+    }
+    lastTapAt = now;
+    lastTapX = e.clientX;
+    lastTapY = e.clientY;
+  }
+
   /* --------------------------------------------------------- poster mode  */
 
   /**
@@ -929,7 +1059,9 @@ export function initPlayer() {
   $('c-mute')?.addEventListener('click', () => { toggleMute(); });
   $('c-slower')?.addEventListener('click', () => { nudgeSpeed(-1); });
   $('c-faster')?.addEventListener('click', () => { nudgeSpeed(1); });
+  for (const btn of fsButtons()) btn.addEventListener('click', () => { toggleFullscreen(); });
   syncMuteButton();
+  syncFullscreenButton();
   userSpeed = loadSpeed();
   syncSpeed();
 
@@ -937,6 +1069,10 @@ export function initPlayer() {
     frame?.addEventListener(evt, showChrome, { passive: true });
   }
   chrome?.addEventListener('focusin', showChrome);
+  frame?.addEventListener('pointerup', onFramePointerUp);
+  for (const evt of ['fullscreenchange', 'webkitfullscreenchange']) {
+    document.addEventListener(evt, onFullscreenChange);
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -962,7 +1098,14 @@ export function initPlayer() {
       nudgeSpeed(1);
     } else if (e.key === 'r' || e.key === 'R') {
       if (state === S.PLAYING || state === S.ENDED) { e.preventDefault(); replay(); }
+    } else if (e.key === 'f' || e.key === 'F') {
+      if (!canFullscreen()) return;
+      e.preventDefault();
+      toggleFullscreen();
     } else if (e.key === 'Escape') {
+      // In fullscreen, Escape is the browser's own way out. Leave the frame, and
+      // do not also walk the viewer out of the player.
+      if (isFullscreen()) { e.preventDefault(); leaveFullscreen(); return; }
       e.preventDefault();
       teardown();
       location.href = '/';

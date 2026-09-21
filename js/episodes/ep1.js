@@ -25,10 +25,9 @@
  *   MEASURED at the authored pace by tools/check.mjs --ep=ep1; see the runtime
  *   target in that harness. Per-line cps/hold below are RELATIVE comic intent —
  *   dialogue.js guarantees each line a readable minimum for its length.
- *   Repeat runs land between 56s and 65s: the dialogue layer types and holds
- *   on real time while the Director waits on stage time, so a machine having
- *   a bad afternoon stretches the waits and not the typing. Both ends are
- *   inside the window; do not spend the margin.
+ *   The dialogue layer types and holds on real time while the Director waits on
+ *   stage time, so a machine having a bad afternoon stretches the waits and not
+ *   the typing, and repeat runs vary by a few seconds either way.
  *
  * @module episodes/ep1
  */
@@ -224,7 +223,7 @@ async function run(ctx) {
     focus(ctx.office, 'bullpen');
     d.cut('whiteboard');
     toCam(brad);
-    await d.nameCard(brad, { ms: 1050 });
+    await d.nameCard(brad, { ms: 1750 });
 
     // Boxes ride the top of frame, ref 02: the people stay in the lower half.
     await d.say(brad, 'I don\'t believe in meetings.', {
@@ -244,7 +243,7 @@ async function run(ctx) {
     d.cut(CAM.dezDesk);
     d.anim(dez, 'talk');
     d.sfx('phone', { gain: 0.35 });
-    await d.nameCard(dez, { ms: 1050 });
+    await d.nameCard(dez, { ms: 1750 });
 
     await d.say(dez, 'I\'ve got a whale on the hook.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 240,
@@ -266,7 +265,7 @@ async function run(ctx) {
 
     focus(ctx.office, 'reception');
     d.cut(CAM.reception);
-    await d.nameCard(kiki, { ms: 1050 });
+    await d.nameCard(kiki, { ms: 1750 });
 
     // Three calls, one answer. The boxes stack down the right of frame because
     // nothing about the call ever changes, and each one types back faster than
@@ -287,7 +286,7 @@ async function run(ctx) {
     focus(ctx.office, 'bullpen');
     d.cut(CAM.roopFloor);
     toCam(roop);
-    await d.nameCard(roop, { ms: 1050 });
+    await d.nameCard(roop, { ms: 1750 });
 
     await d.say(roop, 'Have you tried turning\nyourself off and on again?', {
       maxWidth: WIDE_BOX, anchor: 'tr', hold: 560,
@@ -304,7 +303,7 @@ async function run(ctx) {
     // stacks, facing the lens, walled in.
     d.place(marge, 'boxes', [-1.40, 0, 3.30]);
     d.cut(CAM.margeBoxes);
-    await d.nameCard(marge, { ms: 1050 });
+    await d.nameCard(marge, { ms: 1750 });
 
     await d.say(marge, 'I\'ve prepared a slide.', {
       maxWidth: WIDE_BOX, anchor: 'tm', hold: 300,

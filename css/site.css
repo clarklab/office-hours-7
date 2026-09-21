@@ -604,11 +604,51 @@ button {
 .cast-card {
   --accent: var(--oh-silver);
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   min-width: 0;
   padding: 14px 16px 14px 20px;
   border: 1px solid var(--edge-soft);
   background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 42%), var(--oh-ink);
   transition: border-color 0.2s var(--ease);
+}
+
+.cast-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* --- the headshot --------------------------------------------------- *
+ * /assets/cast/<id>.png is a real render of that character's rig, shot by
+ * `tools/shoot.mjs cast`. gallery.js only attaches the <img> once it has loaded,
+ * so the slot stays collapsed — never an empty box, never a broken image — if the
+ * file is not there.
+ */
+
+.cast-face { display: none; }
+
+.cast-card.has-shot .cast-face {
+  display: block;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--edge-soft);
+  background: var(--oh-black);
+}
+
+.cast-shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 256px of 128 real pixels, doubled: keep the grid, never smooth it. */
+  image-rendering: pixelated;
+}
+
+@media (min-width: 880px) {
+  .cast-card.has-shot .cast-face { width: 84px; height: 84px; }
 }
 
 .cast-card::before {
@@ -849,6 +889,8 @@ body.watch::before { opacity: 0.55; }
 .frame {
   position: relative;
   aspect-ratio: 16 / 9;
+  /* No double-tap-to-zoom: on a phone the second tap is the fullscreen toggle. */
+  touch-action: manipulation;
   width: 100%;
   background: #000;
   border: 1px solid var(--edge);
@@ -858,6 +900,23 @@ body.watch::before { opacity: 0.55; }
 
 .frame.playing { cursor: default; }
 .frame.playing[data-chrome='hidden'] { cursor: none; }
+
+/* Fullscreen: the frame IS the fullscreen element, so it fills the screen and the
+   canvas letterboxes itself inside it. The !important is not decoration — layout()
+   writes an exact px width/height inline, and this has to beat it. */
+.frame:fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  background: #000;
+}
+
+.frame:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  background: #000;
+}
 
 #scene {
   position: absolute;
@@ -977,6 +1036,31 @@ body.watch::before { opacity: 0.55; }
   text-transform: uppercase;
 }
 
+/* The title card's own fullscreen toggle: the same control as the chrome bar's,
+   in the one state where that bar is not on screen. Quieter than PLAY, which
+   owns the card. */
+.ghostbtn {
+  padding: 6px 14px;
+  border: 1px solid rgba(223, 230, 255, 0.18);
+  background: rgba(5, 7, 12, 0.62);
+  color: var(--oh-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--track-mid);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.ghostbtn:hover,
+.ghostbtn:focus-visible {
+  border-color: var(--oh-silver);
+  color: var(--oh-silver-hi);
+}
+
+/* A browser with no element fullscreen (iPhone Safari) gets no button at all. */
+.ghostbtn[hidden] { display: none; }
+
 .btnrow {
   display: flex;
   flex-wrap: wrap;
@@ -1080,6 +1164,21 @@ body.watch::before { opacity: 0.55; }
 .frame[data-size='xs'] .btn { padding: 8px 14px; font-size: 11px; }
 .frame[data-size='xs'] .chrome { padding: 22px 8px 7px; }
 
+/* A phone-sized frame cannot carry four controls and the clock on one row. The
+   buttons stay — a phone has no keyboard to fall back on — and the readout is
+   what goes, since the progress bar and the runtime in the header say the same
+   thing. Same order of preference as the speed control's note. */
+.frame[data-size='xs'] .ctl { gap: 6px; }
+
+.frame[data-size='xs'] .ctl button,
+.frame[data-size='xs'] .ctl a {
+  padding: 8px 9px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.frame[data-size='xs'] .ctl .time { display: none; }
+
 /* --- chrome: progress + auto-hiding controls ------------------------ */
 
 .chrome {
@@ -1127,6 +1226,9 @@ body.watch::before { opacity: 0.55; }
 }
 
 .ctl .spacer { flex: 1 1 auto; }
+
+/* A browser with no element fullscreen (iPhone Safari) gets no button at all. */
+.ctl button[hidden] { display: none; }
 
 .ctl button,
 .ctl a {

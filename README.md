@@ -27,6 +27,7 @@ No build step. It is plain ES modules served as static files.
 node tools/serve.mjs       # serve the repo root
 node tools/check.mjs       # Playwright smoke test: loads every page, plays every episode
 node tools/shoot.mjs       # regenerate episode thumbnails
+node tools/shoot.mjs cast  # regenerate the cast headshots in assets/cast/
 ```
 
 ## Layout
@@ -44,6 +45,7 @@ js/characters/           six characters, procedural animation
 js/sets/                 the office
 js/episodes/             ep1, ep2, ep3
 docs/SPEC.md             the build contract
+docs/EPISODE-AUTHORING.md  how to write an episode (one file); `npm run vocab`
 docs/ref/                FF7 reference captures
 ```
 

@@ -550,14 +550,15 @@ mining crypto on the printers → Kiki suggests charging the sales team for the 
 just sold → Brad's final idea is a rebrand. Marge's chart goes *down* every time. Button:
 the lights cut out mid-sentence and everyone keeps talking in the dark.
 
-### EP3 — "TUESDAY"  (accent `#c98a4b`)
-A dog is in the office. Nobody knows how. Framed like a **JRPG random encounter**: a
-"! TUESDAY APPEARED" banner, a battle-style menu of what to do (`TALK`, `FEED`, `ADOPT`,
-`RUN`), and everyone disagrees loudly. Kiki has already named it and made it a badge. Dez
-wants to put it on a sales call. Roop is allergic but won't say so. Marge is calculating
-the dog's per-head cost. Brad declares it the new Head of Culture. The dog does exactly one
-correct thing and everyone takes credit. Button: the dog sits in Brad's chair; everyone
-defers to it.
+### EP3 — "GOOD GIRL"  (accent `#d05a4a`)
+The lore of the office dog, as a flashback ("LAST MARCH."). Brad announces Take Your Dog
+To Work Day; nobody owns a dog. At noon an old, three-legged dapple dachshund wanders in
+alone — a BONUS dog — and her tag says "Tuesday" (it is Friday). GARY STRAUB, the 80s
+client (guest star), arrives doing finger guns and 80s material at Kiki and Marge; Kiki
+says "Tuesday. No... Tuesday. Yes." and Tuesday bites him. He hops out, taking his
+business elsewhere; Marge notes he was the least profitable account. The post goes
+viral, they throw her a party with a hamburger and a candle, and she becomes the office
+dog. Button: Brad asks who's a good girl, and she bites Brad. Kiki: "Consistent."
 
 ## 8. Quality bar
 - Every episode must be watchable end-to-end with no console errors and no stalls.

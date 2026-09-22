@@ -69,7 +69,7 @@ import path from 'node:path';
 import { start, ROOT } from './serve.mjs';
 
 /** The episodes the show ships with. */
-export const EPISODE_IDS = ['ep1', 'ep2', 'ep3', 'ep4'];
+export const EPISODE_IDS = ['ep1', 'ep2', 'ep3'];
 
 /** Where screenshots go. Deliberately NOT in the repo. */
 const DEFAULT_OUT = '/tmp/oh7-check';

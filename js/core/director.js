@@ -397,6 +397,30 @@ export function createDirector(stage, ui, options = {}) {
   function headPos(a, out) {
     const h = a && a.head && a.head.isObject3D ? a.head : null;
     if (h) { h.updateMatrixWorld(); return h.getWorldPosition(out); }
+    return bodyTop(a, out);
+  }
+
+  /**
+   * World-space point at the TOP of an actor's head. The head joint is the base
+   * of the skull, so a box hung from it sits on the face; this is where a box
+   * belongs. Follows the head as it tilts, so a slump or a hop still works.
+   * @param {import('../characters/rig.js').Actor} a
+   * @param {THREE.Vector3} out
+   * @returns {THREE.Vector3}
+   */
+  function headTop(a, out) {
+    const h = a && a.head && a.head.isObject3D ? a.head : null;
+    if (!h) return bodyTop(a, out);
+    h.updateMatrixWorld();
+    return h.localToWorld(out.set(0, num(a.headHeight, 0.30), 0));
+  }
+
+  /**
+   * Fallback for rigs without a head joint.
+   * @param {*} a @param {THREE.Vector3} out
+   * @returns {THREE.Vector3}
+   */
+  function bodyTop(a, out) {
     const g = a && a.group;
     const tall = a && a.profile ? num(a.profile.height, DEFAULT_HEIGHT) : DEFAULT_HEIGHT;
     if (g) { g.updateMatrixWorld(); g.getWorldPosition(out); } else out.set(0, 0, 0);
@@ -1260,13 +1284,19 @@ export function createDirector(stage, ui, options = {}) {
     let y = maxY;
 
     if (a) {
-      const s = project(headPos(a, tmpA));
-      const onFrame = s.visible && s.x > 4 && s.x < DESIGN_W - 4 && s.y > -24 && s.y < DESIGN_H + 24;
+      // Hang the box from the top of the head, not the head joint (the base of
+      // the skull), or it lands on the speaker's face.
+      const top = project(headTop(a, tmpA));
+      const topX = top.x;
+      const topY = top.y;
+      const topVis = top.visible;
+      const chin = project(headPos(a, tmpA));
+      const onFrame = topVis && topX > 4 && topX < DESIGN_W - 4 && topY > -24 && topY < DESIGN_H + 24;
       if (onFrame) {
-        x = s.x;
-        y = s.y - gap;
-        // No headroom: drop the box under the actor's head instead.
-        if (y < minY) y = s.y + 16 + h + AT_GAP;
+        x = topX;
+        y = topY - gap;
+        // No headroom: drop the box under the chin instead — never across the face.
+        if (y < minY) y = Math.max(chin.y, topY) + 8 + h + AT_GAP;
       }
     }
 

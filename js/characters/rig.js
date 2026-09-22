@@ -1294,7 +1294,8 @@ export const HUMAN_SIT_JOINTS = ['hips', 'thighL', 'thighR', 'shinL', 'shinR', '
  * @typedef {Object} Actor
  * @property {THREE.Group} group root; place it with `group.position`
  * @property {CharProfile} profile
- * @property {THREE.Object3D} head
+ * @property {THREE.Object3D} head the head joint, at the base of the skull
+ * @property {number} headHeight additive: head joint to the top of the head, in metres
  * @property {THREE.Object3D} body
  * @property {Object<string, THREE.Object3D>} parts named joints
  * @property {(name:string)=>void} play
@@ -1824,6 +1825,9 @@ export function createRig(profile, build, opts = {}) {
     group,
     profile,
     head: parts.head,
+    // metres from the head joint (the base of the skull) to the top of the
+    // head, hair included — where a dialogue box should hang from
+    headHeight: spec.headHeight === undefined ? (opts.skeleton ? 0.10 : dims.head + 0.05) : spec.headHeight,
     body: parts.chest || parts.spine || parts.hips,
     parts,
     play,

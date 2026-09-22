@@ -414,7 +414,7 @@ function drawPlate(c, ep) {
     c.fillStyle = A;
     c.fillRect(cx - 46, 104, 92, 1);
     c.globalAlpha = 1;
-  } else if (ep.id === 'ep4') {
+  } else if (ep.id === 'ep3') {
     // GOOD GIRL: the company in a row, the dog, and a hamburger with a candle in it.
     for (const [x, g, h] of [[58, 110, 44], [96, 106, 40], [160, 106, 40], [198, 110, 44]]) {
       figure(c, x, g, h, A);
